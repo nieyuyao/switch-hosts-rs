@@ -11,6 +11,8 @@ pub mod editor;
 
 pub mod hosts;
 
+pub mod data;
+
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let terminal = ratatui::init();

@@ -1,8 +1,8 @@
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
-    DefaultTerminal, Frame,
-    layout::{Layout, Constraint, Flex}
+    prelude::{Rect, Buffer},
+    layout::{Constraint, Flex, Layout}, widgets::Widget, DefaultTerminal, Frame
 };
 use crate::{editor::Editor, list::HostsList};
 
@@ -10,7 +10,7 @@ use crate::{editor::Editor, list::HostsList};
 pub struct App {
     running: bool,
     hosts_list: HostsList,
-    editor: Editor<'static>
+    editor: Editor<'static>,
 }
 
 impl App {
@@ -23,49 +23,56 @@ impl App {
         self.hosts_list.init();
         while self.running {
             terminal.draw(|frame| {
-                self.draw(frame)
+                frame.render_widget(&mut self, frame.area());
             })?;
             self.handle_crossterm_events()?;
         }
+        terminal.show_cursor()?;
         Ok(())
     }
 
-    ///
-    /// ┌               ┐  ┌             ┐
-    /// |  List ~ 240 px|  |    Editor   |
-    /// └               ┘  └             ┘
-    fn draw(&mut self, frame: &mut Frame) {
-        let [list_area, editor_area] = Layout::horizontal(vec![
-            Constraint::Length(240),
-            Constraint::Min(240)
+    /// ┌       ┐  ┌         ┐
+    /// |  50%  |  |   50%   |
+    /// └       ┘  └         ┘
+    fn draw(&mut self, area: Rect, buf: &mut Buffer) {
+        let [left, right] = Layout::horizontal(vec![
+            Constraint::Percentage(50),
+            Constraint::Percentage(50),
         ])
         .flex(Flex::Start)
-        .areas(frame.area());
-        self.hosts_list.draw(list_area, frame.buffer_mut());
-        self.editor.draw(editor_area, frame.buffer_mut());
+        .areas(area);
+        self.hosts_list.draw(left, buf);
+        self.editor.draw(right, buf);
     }
 
     fn handle_crossterm_events(&mut self) -> Result<()> {
         match event::read()? {
-            // it's important to check KeyEventKind::Press to avoid handling key release events
             Event::Key(event) if event.kind == KeyEventKind::Press => self.on_key_event(event),
             _ => {}
         }
         Ok(())
     }
 
-    fn on_key_event(&mut self, key: KeyEvent) {
-        match (key.modifiers, key.code) {
+    fn on_key_event(&mut self, event: KeyEvent) {
+        match (event.modifiers, event.code) {
             (_, KeyCode::Esc | KeyCode::Char('q'))
             | (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
-            // Add other key handlers here.
             _ => {
-                self.hosts_list.handle_event(key);
+                self.hosts_list.handle_event(event);
+                self.editor.handle_event(event);
             }
         }
     }
+    
 
     fn quit(&mut self) {
         self.running = false;
+    }
+}
+
+
+impl Widget for &mut App {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        self.draw(area, buf);
     }
 }
