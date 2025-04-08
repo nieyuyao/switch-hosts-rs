@@ -12,3 +12,11 @@ Copyright (c) z-nieyuyao
 This project is licensed under the MIT license ([LICENSE] or <http://opensource.org/licenses/MIT>)
 
 [LICENSE]: ./LICENSE
+
+
+## 快捷键
+
+^n 新建一个Hosts
+^d 删除一个Hosts
+^C 退出应用
+Enter 启用/取消

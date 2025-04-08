@@ -1,3 +1,5 @@
+
+use uuid::Uuid;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     prelude::{Buffer, Rect},
@@ -8,6 +10,7 @@ use ratatui::{
     text::Line,
     widgets::{Block, List, ListItem, ListState, StatefulWidget, Widget},
 };
+use crate::data::{delete_item, write_item_data};
 
 #[derive(Debug, Default)]
 pub struct HostsListItem {
@@ -60,36 +63,37 @@ impl HostsList {
         }
     }
 
-    pub fn init(&self) {}
-
     pub fn handle_event(&mut self, event: KeyEvent) {
-        match event.code {
-            KeyCode::Char('h') | KeyCode::Left => self.select_none(),
-            KeyCode::Char('j') | KeyCode::Down => self.select_next(),
-            KeyCode::Char('k') | KeyCode::Up => self.select_previous(),
-            KeyCode::Char('g') | KeyCode::Home => self.select_first(),
-            KeyCode::Char('G') | KeyCode::End => self.select_last(),
-            _ => {}
-        }
     }
 
     fn read_from_local(&self) {}
 
-    fn add_item(&self) {}
+    // 添加hosts
+    fn add_item(&self, content: String) {
+        let id = Uuid::new_v4();
+        write_item_data(id.to_string(), content).unwrap_or_else(|err| {
+            todo!();
+        })
+    }
 
-    fn del_item(&self) {}
+    // 删除hosts
+    fn del_item(&self, id: String) {
+        delete_item(id).unwrap_or_else(|err| {
+            todo!();
+        })
+    }
 
+    // 选中hosts
     fn select_item(&self) {}
 
+    // 反选hosts
     fn select_none(&self) {}
 
-    fn select_next(&self) {}
+    // toggle next hosts
+    fn toggle_next(&self) {}
 
-    fn select_previous(&self) {}
-
-    fn select_first(&self) {}
-
-    fn select_last(&self) {}
+    // toggle prev hosts
+    fn toggle_previous(&self) {}
 
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
         let block = Block::new();
@@ -98,15 +102,25 @@ impl HostsList {
         let block = Block::bordered()
             .style(Style::new().white().on_black().bold())
             .title("Your hosts list ↓↓↓");
-
         let items: Vec<ListItem> = self
             .data_list
             .iter()
             .map(|hosts_item| ListItem::from(hosts_item))
             .collect();
-
         let list = List::new(items).block(block).highlight_symbol(">");
-
         StatefulWidget::render(list, area, buf, &mut self.state);
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use uuid::Uuid;
+
+    #[test]
+    pub fn test_uuid() {
+        let id = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        assert_ne!(id, id2);
     }
 }

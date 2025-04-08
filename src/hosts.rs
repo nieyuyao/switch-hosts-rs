@@ -1,5 +1,9 @@
 use std::{
-    fmt::Display, fs, io::{self, Write}, os::unix::fs::PermissionsExt, process::{Command, Stdio}
+    fmt::Display,
+    fs,
+    io::{self, Write},
+    os::unix::fs::PermissionsExt,
+    process::{Command, Stdio},
 };
 
 const CONTENT_START: &str = "# --- SWITCHHOSTS_RS_CONTENT_START ---";
@@ -29,9 +33,7 @@ pub fn set_sudo_permissions<'a>(password: impl Into<String> + Display) -> io::Re
     let sys_hosts_path = get_sys_hosts_path();
     let mut command = Command::new("sudo");
     let args = ["-S", "chmod", "777", sys_hosts_path.as_str()];
-    command
-        .args(&args)
-        .stdin(Stdio::piped());
+    command.args(&args).stdin(Stdio::piped());
 
     let mut child = command.spawn()?;
 
@@ -42,14 +44,15 @@ pub fn set_sudo_permissions<'a>(password: impl Into<String> + Display) -> io::Re
     Ok(())
 }
 
-pub fn resume_permissions(password: impl Into<String> + Display, old_permission_mode: &str) -> io::Result<()> {
+pub fn resume_permissions(
+    password: impl Into<String> + Display,
+    old_permission_mode: &str,
+) -> io::Result<()> {
     let sys_hosts_path = get_sys_hosts_path();
     let mut command = Command::new("sudo");
     println!("{}", old_permission_mode);
     let args = ["-S", "chmod", old_permission_mode, sys_hosts_path.as_str()];
-    command
-        .args(&args)
-        .stdin(Stdio::piped()); 
+    command.args(&args).stdin(Stdio::piped());
 
     let mut child = command.spawn()?;
 
@@ -62,14 +65,14 @@ pub fn resume_permissions(password: impl Into<String> + Display, old_permission_
 
 pub fn write_sys_hosts_with_sudo(password: String, appended: String) -> io::Result<()> {
     let sys_hosts_path = get_sys_hosts_path();
-    let metadata= fs::metadata(&sys_hosts_path)?;
+    let metadata = fs::metadata(&sys_hosts_path)?;
     let old_mode = metadata.permissions().mode();
     let mask = 0o000777;
     let old_permission_mode = old_mode & mask;
     println!("old mode is {:o}", old_mode);
 
     set_sudo_permissions(&password)?;
-  
+
     let mut hosts_content = String::from_utf8(fs::read(&sys_hosts_path)?).unwrap();
     let start_index = hosts_content.find(CONTENT_START);
     let end_index = hosts_content.find(CONTENT_END);
