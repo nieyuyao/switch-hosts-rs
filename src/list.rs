@@ -1,6 +1,6 @@
 
 use uuid::Uuid;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::KeyEvent;
 use ratatui::{
     prelude::{Buffer, Rect},
     style::{
@@ -10,7 +10,7 @@ use ratatui::{
     text::Line,
     widgets::{Block, List, ListItem, ListState, StatefulWidget, Widget},
 };
-use crate::data::{delete_item, write_item_data};
+use crate::data::{add_config_item, add_item, delete_item};
 
 #[derive(Debug, Default)]
 pub struct HostsListItem {
@@ -69,9 +69,9 @@ impl HostsList {
     fn read_from_local(&self) {}
 
     // 添加hosts
-    fn add_item(&self, content: String) {
+    pub fn add_item(&self, title: String, content: String) {
         let id = Uuid::new_v4();
-        write_item_data(id.to_string(), content).unwrap_or_else(|err| {
+        add_item(id.to_string(), title, content).unwrap_or_else(|err| {
             todo!();
         })
     }

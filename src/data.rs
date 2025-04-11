@@ -1,13 +1,14 @@
 use std::result::Result;
 use color_eyre::eyre::Error;
-use serde_json::Value;
+use serde::Serialize;
+use serde_json::{*, Value};
 use std::{env, fs, path::PathBuf, vec::Vec};
 
 const SWITCH_HOSTS_RS_DIR: &str = ".SwitchHostsRs";
 
 type ID = String;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct ConfigItem {
     id: ID,
     on: bool,
@@ -86,7 +87,7 @@ pub fn add_item(id: ID, title: String, content: String) -> Result<(), Error> {
     check_switch_host_rs_dir_exist()?;
     check_data_dir_exist()?;
     let data_dir = get_data_dir().unwrap();
-    let file_name = &data_dir.join(format!("{}.txt", id));
+    let file_name = &data_dir.join(format!("{}.txt", id.clone()));
     match fs::write(file_name, content) {
         Ok(_) => add_config_item(id, title),
         Err(err) => Err(err.into())
@@ -137,7 +138,10 @@ pub fn add_config_item(id: ID, title: String) -> Result<(), Error> {
     match config.iter().position(|item| item.id == id) {
         Some(index) => {
             let item = config.get_mut(index).unwrap();
-            item.title = title
+            item.title = title;
+            if let Ok(new_config_json) = serde_json::to_string(&config) {
+                write_config(new_config_json)?;
+            }
         },
         _ => {
             config.push(ConfigItem {
@@ -145,6 +149,9 @@ pub fn add_config_item(id: ID, title: String) -> Result<(), Error> {
                 title,
                 on: false,
             });
+            if let Ok(new_config_json) = serde_json::to_string(&config) {
+                write_config(new_config_json)?;
+            }
         }
     }
     Ok(())

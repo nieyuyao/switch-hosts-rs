@@ -17,7 +17,7 @@ pub mod tip;
 
 pub mod title_dialog;
 
-pub mod common;
+pub mod message;
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;

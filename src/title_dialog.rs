@@ -6,7 +6,6 @@ use ratatui::{
     widgets::{Block, Borders, Widget},
 };
 use tui_textarea::TextArea;
-use crate::common::EventHandler;
 
 #[derive(Debug, Default)]
 pub struct TitleDialog<'a> {
@@ -16,40 +15,40 @@ pub struct TitleDialog<'a> {
 impl<'a> TitleDialog<'a> {
     pub fn new() -> Self {
         let mut textarea = TextArea::default();
+        textarea.set_cursor_line_style(Style::default());
         textarea.set_placeholder_text("Input hosts title");
         textarea.set_placeholder_style(Style::default().add_modifier(Modifier::ITALIC));
         TitleDialog { textarea }
     }
 
-    fn get_text(&self) -> String {
+    pub fn get_text(&self) -> String {
         let lines = self.textarea.lines();
         let text = lines.join("");
         text
     }
-    
-    pub fn inactivate(&mut self) {
-        self.textarea.set_cursor_line_style(Style::default());
-        self.textarea.set_cursor_style(Style::default());
-        self.textarea.set_block(
-            Block::default()
-                .borders(Borders::ALL)
-                .style(
-                    Style::new().white().on_black().bold().not_underlined()
-                )
-                .title("Hosts title"),
-        );
-    }
 
-    pub fn activate(&mut self) {
-        self.textarea.set_cursor_line_style(Style::default());
-        self.textarea.set_cursor_style(Style::default());
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .style(
-                Style::new().light_green().on_black().bold().not_underlined()
-            )
-            .title(String::from("Hosts title"));
-        self.textarea.set_block(block);
+    pub fn handle_event<F: FnMut((bool, Option<String>))>(
+        &mut self,
+        event: KeyEvent,
+        mut callback: F,
+    ) -> () {
+        match event.code {
+            KeyCode::Esc => {
+                callback((true, None));
+            }
+            KeyCode::Enter => {
+                let text = self.get_text();
+                if text.is_empty() {
+                    callback((false, Some(String::from("不能输入空标题"))));
+                } else {
+                    callback((true, Some(String::from(text))));
+                }
+            }
+            _ => {
+                self.textarea.input(event);
+                callback((false, None));
+            }
+        }
     }
 
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
@@ -59,22 +58,5 @@ impl<'a> TitleDialog<'a> {
             .title(String::from("Hosts title"));
         self.textarea.set_block(block);
         self.textarea.render(area, buf);
-    }
-}
-
-
-impl<'a> EventHandler for TitleDialog<'a> {
-    fn handle_event(&mut self, event: KeyEvent, mut on_close: impl FnMut() -> ()) -> () {
-        match event.code {
-            KeyCode::Esc => {
-                on_close();
-            }
-            KeyCode::Enter => {
-                // TODO:
-            },
-            _ => {
-                self.textarea.input(event);
-            }
-        }
     }
 }
