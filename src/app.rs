@@ -1,4 +1,4 @@
-use crate::{editor::Editor, list::HostsList, message::Message, title_dialog::TitleDialog};
+use crate::{common::EventHandler, editor::Editor, list::HostsList, tip::Tip, title_dialog::TitleDialog};
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
@@ -11,7 +11,8 @@ use ratatui::{
 };
 
 #[derive(Debug, Default, PartialEq)]
-pub enum InputMode {
+
+enum Mode {
     #[default]
     Normal,
     EditingTitle,
@@ -23,10 +24,10 @@ pub struct App<'a> {
     running: bool,
     hosts_list: HostsList,
     editor: Editor<'a>,
-    message: Message<'a>,
+    tip: Message<'a>,
     edit_list_message_line: Line<'a>,
     edit_hosts_message_line: Line<'a>,
-    mode: InputMode,
+    mode: Mode,
     title_dialog: TitleDialog<'a>,
     show_title_dialog: bool,
 }
@@ -42,8 +43,8 @@ fn title_dialog_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
 impl App<'static> {
     pub fn new() -> Self {
         let hosts_list = HostsList::new();
-        let editor: Editor<'_> = Editor::new();
-        let message: Message<'_> = Message::new();
+        let editor = Editor::new();
+        let tip = Tip::new();
         let edit_list_message_line = Line::from(vec![
             Span::raw("Press "),
             Span::styled("^N", Style::default().add_modifier(Modifier::BOLD)),
@@ -59,15 +60,22 @@ impl App<'static> {
             Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" to exit edit"),
         ]);
+        let edit_title_message_line = Line::from(vec![
+            Span::raw("Press "),
+            Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" to add new hosts,  "),
+            Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" to exit dialog"),
+        ]);
         let title_dialog = TitleDialog::new();
         App {
             running: false,
             hosts_list,
             editor,
-            message,
+            tip,
             edit_list_message_line,
             edit_hosts_message_line,
-            mode: InputMode::Normal,
+            mode: Mode::Normal,
             title_dialog,
             show_title_dialog: false,
         }
@@ -76,8 +84,8 @@ impl App<'static> {
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         self.running = true;
         while self.running {
-            if self.mode == InputMode::Normal {
-                self.message.set_line(self.edit_list_message_line.clone());
+            if self.mode == Mode::Normal {
+                self.tip.set_line(self.edit_list_message_line.clone());
             }
             terminal.draw(|frame| {
                 self.draw(frame);
@@ -98,8 +106,10 @@ impl App<'static> {
                 .areas(main_area);
         self.hosts_list.draw(left, buf);
         self.editor.draw(right, buf);
-        self.message.draw(message_area, buf);
-        self.draw_title_dialog(frame_area, frame);
+        self.tip.draw(message_area, buf);
+        if self.show_title_dialog {
+            self.draw_title_dialog(frame_area, frame);
+        }
     }
 
     fn draw_title_dialog(&mut self, frame_area: Rect, frame: &mut Frame) {
@@ -119,12 +129,26 @@ impl App<'static> {
     }
 
     fn on_key_event(&mut self, event: KeyEvent) {
+        if self.mode == Mode::EditingTitle {
+            self.title_dialog.handle_event(event, || {
+                self.show_title_dialog = false;
+                self.mode = Mode::Normal;
+            });
+            return;
+        }
+        else if self.mode == Mode::EditingHosts {
+            self.editor.handle_event(event, || {});
+            return;
+        }
         match (event.modifiers, event.code) {
             (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
-            _ => {
-                self.hosts_list.handle_event(event);
-                self.editor.handle_event(event);
-            }
+            (KeyModifiers::SHIFT, KeyCode::Char('n') | KeyCode::Char('N')) => {
+                if self.mode == Mode::Normal {
+                    self.show_title_dialog = true;
+                    self.mode = Mode::EditingTitle;
+                }
+            },
+            _ => {}
         }
     }
 

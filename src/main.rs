@@ -13,9 +13,11 @@ pub mod hosts;
 
 pub mod data;
 
-pub mod message;
+pub mod tip;
 
 pub mod title_dialog;
+
+pub mod common;
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;

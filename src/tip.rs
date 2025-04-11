@@ -6,12 +6,12 @@ use ratatui::{
 };
 
 #[derive(Debug, Default)]
-pub struct Message<'a> {
-    line: Option<Line<'a>>
+pub struct Tip<'a> {
+    line: Option<Line<'a>>,
 }
-impl<'a> Message<'a> {
+impl<'a> Tip<'a> {
     pub fn new() -> Self {
-        return Message::default()
+        return Tip::default()
     }
 
     pub fn set_line(&mut self, line: Line<'a>) {

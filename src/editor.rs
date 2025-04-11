@@ -1,10 +1,11 @@
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     prelude::{Buffer, Rect},
     style::{Style, Stylize},
     widgets::{Block, Borders, Widget},
 };
 use tui_textarea::TextArea;
+use crate::common::EventHandler;
 
 #[derive(Debug, Default)]
 pub struct Editor<'a> {
@@ -48,11 +49,26 @@ impl Editor<'_> {
             .title(String::from("Hosts content"));
         self.textarea.set_block(block);
     }
-    pub fn handle_event(&mut self, event: KeyEvent) {
-        self.textarea.input(event);
-    }
 
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
         self.textarea.render(area, buf);
+    }
+}
+
+
+
+impl<'a> EventHandler for Editor<'a> {
+    fn handle_event(&mut self, event: KeyEvent, mut on_close: impl FnMut() -> ()) -> () {
+        match event.code {
+            KeyCode::Esc => {
+                on_close();
+            },
+            KeyCode::Enter => {
+                // TODO:
+            },
+            _ => {
+                self.textarea.input(event);
+            }
+        }
     }
 }
