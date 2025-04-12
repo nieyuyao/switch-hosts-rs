@@ -1,126 +1,181 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 
-use uuid::Uuid;
-use crossterm::event::KeyEvent;
+use crate::data::{
+    add_item, delete_item, read_config, read_item_data, update_config_item, write_item_data,
+    ConfigItem,
+};
+use crate::observer::UpdateHostsContentSubject;
+use crate::util::Result;
+use crate::util::{find_config_by_id, find_selected_index};
 use ratatui::{
     prelude::{Buffer, Rect},
-    style::{
-        palette::tailwind::{GREEN, WHITE},
-        Modifier, Style, Stylize,
-    },
-    text::Line,
+    style::{Style, Stylize},
     widgets::{Block, List, ListItem, ListState, StatefulWidget, Widget},
 };
-use crate::data::{add_config_item, add_item, delete_item};
+use uuid::Uuid;
 
-#[derive(Debug, Default)]
-pub struct HostsListItem {
-    // title of list item
-    name: String,
-    // is enable
-    on: bool,
-    // hosts content
-    hosts: String,
-}
-
-impl HostsListItem {
-    fn create(name: String, on: bool, hosts: String) -> Self {
-        HostsListItem {
-            name: String::new(),
-            on: false,
-            hosts: String::new(),
-        }
-    }
-}
-
-impl From<&HostsListItem> for ListItem<'_> {
-    fn from(value: &HostsListItem) -> Self {
-        let line = if value.on {
-            Line::styled(
-                format!("✓ {}", value.name),
-                Style::new().fg(GREEN.c100).add_modifier(Modifier::BOLD),
-            )
-        } else {
-            Line::styled(format!("{}", value.name), WHITE)
-        };
-
-        ListItem::new(line)
-    }
-}
-
-#[derive(Debug, Default)]
 pub struct HostsList {
-    data_list: Vec<HostsListItem>,
+    item_list: Vec<ConfigItem>,
     state: ListState,
-    selected_item: Option<HostsListItem>,
+    enabled_ids: Vec<String>,
+    selected: Option<String>,
+    subject: Option<Rc<RefCell<UpdateHostsContentSubject>>>,
 }
 
 impl HostsList {
     pub fn new() -> Self {
         HostsList {
-            data_list: Vec::<HostsListItem>::new(),
-            selected_item: None,
+            item_list: Vec::<ConfigItem>::new(),
+            enabled_ids: Vec::<String>::new(),
+            selected: None,
             state: ListState::default(),
+            subject: None,
         }
     }
 
-    pub fn handle_event(&mut self, event: KeyEvent) {
+    pub fn init(&mut self) {
+        if let Ok(config_item_list) = read_config() {
+            self.item_list = config_item_list;
+        }
+        if !self.item_list.is_empty() {
+            self.selected = Some(self.item_list[0].id().to_owned());
+            self.dispatch_update_hosts_content_subject();
+        }
     }
 
-    fn read_from_local(&self) {}
-
-    // 添加hosts
-    pub fn add_item(&self, title: String, content: String) {
-        let id = Uuid::new_v4();
-        add_item(id.to_string(), title, content).unwrap_or_else(|err| {
-            todo!();
+    pub fn add_item(&mut self, title: String, content: String) -> Result<()> {
+        let id = Uuid::new_v4().to_string();
+        add_item(id.clone(), title.clone(), content).and_then(|_| {
+            let item = ConfigItem::new(id.clone(), false, title);
+            self.item_list.push(item);
+            if self.item_list.len() == 1 {
+                self.selected = Some(id);
+            }
+            Ok(())
         })
     }
 
-    // 删除hosts
-    fn del_item(&self, id: String) {
-        delete_item(id).unwrap_or_else(|err| {
-            todo!();
-        })
+    pub fn delete_current_item(&mut self) -> Result<()> {
+        if let Some(id) = &self.selected {
+            self.delete_item(id.to_owned())?
+        }
+        Ok(())
     }
 
-    // 选中hosts
-    fn select_item(&self) {}
+    pub fn delete_item(&mut self, id: String) -> Result<()> {
+        delete_item(&id).and_then(|_| {
+            if let Some(idx) = self
+                .item_list
+                .iter()
+                .position(|item| item.id().to_owned() == id)
+            {
+                self.item_list.remove(idx);
+                if id == self.get_selected_id().clone().unwrap_or("".to_owned()) {
+                    if self.item_list.len() > 0 {
+                        self.selected = Some(self.item_list[0].id().to_owned());
+                    } else {
+                        self.selected = None;
+                    }
+                }
+            }
+            Ok(())
+        })?;
+        Ok(())
+    }
 
-    // 反选hosts
-    fn select_none(&self) {}
+    pub fn toggle_on_off(&mut self) -> Result<()> {
+        let id = self.selected.clone().unwrap_or("".to_owned());
+        if let Some(config) = find_config_by_id(&mut self.item_list, &id) {
+            let on = !config.is_on();
+            update_config_item(
+                id.clone(),
+                &ConfigItem::new(id.clone(), on, config.title().to_owned()),
+            )?;
+            config.on_off(on);
+        }
+        Ok(())
+    }
 
-    // toggle next hosts
-    fn toggle_next(&self) {}
+    pub fn get_selected_id(&self) -> &Option<String> {
+        &self.selected
+    }
 
-    // toggle prev hosts
-    fn toggle_previous(&self) {}
+    pub fn toggle_previous(&mut self) {
+        if self.selected.is_none() {
+            return;
+        }
+        if let Some(idx) = self
+            .item_list
+            .iter()
+            .position(|item| return item.id() == self.selected.clone().unwrap().as_str())
+        {
+            if idx >= 1 {
+                self.selected = Some(self.item_list[idx - 1].id().to_owned());
+                self.dispatch_update_hosts_content_subject();
+            }
+        }
+    }
+
+    pub fn toggle_next(&mut self) {
+        if self.selected.is_none() {
+            return;
+        }
+        if let Some(idx) = self
+            .item_list
+            .iter()
+            .position(|item| return item.id() == self.selected.clone().unwrap().as_str())
+        {
+            if idx + 1 < self.item_list.len() {
+                self.selected = Some(self.item_list[idx + 1].id().to_owned());
+                self.dispatch_update_hosts_content_subject();
+            }
+        }
+    }
 
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
         let block = Block::new();
         block.render(area, buf);
-
         let block = Block::bordered()
             .style(Style::new().white().on_black().bold())
-            .title("Your hosts list ↓↓↓");
+            .title("Hosts List");
         let items: Vec<ListItem> = self
-            .data_list
+            .item_list
             .iter()
             .map(|hosts_item| ListItem::from(hosts_item))
             .collect();
         let list = List::new(items).block(block).highlight_symbol(">");
+        self.state.select(find_selected_index(
+            &self.item_list,
+            &self.selected.clone().unwrap_or("".to_owned()),
+        ));
         StatefulWidget::render(list, area, buf, &mut self.state);
     }
-}
 
+    pub fn generate_hosts_content(&self) -> Result<String> {
+        let enabled = self
+            .item_list
+            .iter()
+            .filter(|item| item.is_on())
+            .collect::<Vec<_>>();
+        let mut hosts_content = String::new();
+        for item in enabled {
+            let id = item.id();
+            let item_content = read_item_data(id)?;
+            hosts_content.push_str("\n");
+            hosts_content.push_str(&item_content);
+        }
+        Ok("".to_owned())
+    }
 
-#[cfg(test)]
-mod tests {
-    use uuid::Uuid;
+    pub fn inject_subject(&mut self, subject: Rc<RefCell<UpdateHostsContentSubject>>) {
+        self.subject.get_or_insert(subject);
+    }
 
-    #[test]
-    pub fn test_uuid() {
-        let id = Uuid::new_v4();
-        let id2 = Uuid::new_v4();
-        assert_ne!(id, id2);
+    pub fn dispatch_update_hosts_content_subject(&self) {
+        if let Some(s) = self.subject.clone() {
+            s.borrow()
+            .notify(self.selected.clone().unwrap_or("".to_owned()).as_str());
+        }
     }
 }

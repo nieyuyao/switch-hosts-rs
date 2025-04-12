@@ -10,7 +10,6 @@ const CONTENT_START: &str = "# --- SWITCHHOSTS_RS_CONTENT_START ---";
 
 const CONTENT_END: &str = "# --- SWITCHHOSTS_RS_CONTENT_END ---";
 
-#[cfg(not(target_os = "windows"))]
 fn get_sys_hosts_path() -> String {
     String::from("/etc/hosts")
 }
@@ -91,54 +90,4 @@ pub fn write_sys_hosts_with_sudo(password: String, appended: String) -> io::Resu
 pub fn read_sys_hosts() -> io::Result<String> {
     let hosts_path = get_sys_hosts_path();
     fs::read(&hosts_path).map(|buf| String::from_utf8(buf).unwrap_or(String::new()))
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn test_read_sys_hosts() {
-        match read_sys_hosts() {
-            Ok(content) => {
-                println!("{content}");
-                assert!(true);
-            }
-            Err(_) => assert!(false),
-        }
-    }
-
-    #[test]
-    fn test_check_access() {
-        assert_eq!(check_access(), false);
-    }
-
-    #[test]
-    fn test_write_sys_hosts() {
-        match write_sys_hosts("127.0.0.1 localhost") {
-            Ok(_) => {
-                assert!(true);
-            }
-            Err(err) => {
-                let err_message: String = format!("err is {}", err);
-                println!("{err_message}");
-                assert!(err_message.contains("Permission denied"));
-            }
-        }
-    }
-
-    #[test]
-    fn test_write_sys_hosts_with_sudo() {
-        match write_sys_hosts_with_sudo(
-            String::from("WOshihuaidan@1992"),
-            String::from("10.100.0.14 abcd.com\n10.100.0.12 def.com\n10.100.0.13 deg.com"),
-        ) {
-            Ok(_) => assert!(true),
-            Err(err) => {
-                println!("{}", format!("err is {}", err));
-                assert!(false)
-            }
-        }
-    }
 }

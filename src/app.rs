@@ -1,15 +1,18 @@
-use crate::message::Message;
-use crate::{editor::Editor, list::HostsList, tip::Tip, title_dialog::TitleDialog};
-use color_eyre::Result;
+use std::{cell::RefCell, rc::Rc};
+
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Flex, Layout},
     prelude::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Clear, Paragraph},
+    widgets::Clear,
     DefaultTerminal, Frame,
 };
+use crate::{hosts::write_sys_hosts, message::Message, observer::UpdateHostsContentSubject};
+use crate::{editor::Editor, list::HostsList, tip::Tip, title_input::TitleInput};
+use crate::util::Result;
+
 
 #[derive(Debug, Default, PartialEq)]
 
@@ -20,27 +23,25 @@ enum Mode {
     EditingHosts,
 }
 
-#[derive(Debug, Default)]
 pub struct App<'a> {
     running: bool,
     hosts_list: HostsList,
-    editor: Editor<'a>,
+    editor: Rc<RefCell<Editor<'a>>>,
     tip: Tip<'a>,
     edit_list_message_line: Line<'a>,
     edit_hosts_message_line: Line<'a>,
     mode: Mode,
-    title_dialog: TitleDialog<'a>,
-    show_title_dialog: bool,
+    title_input: TitleInput<'a>,
+    show_title_input: bool,
     message: Message,
     show_message: bool,
     message_text: String,
 }
 
-fn title_dialog_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
+fn title_input_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
     let vertical = Layout::vertical([Constraint::Length(3)]).flex(Flex::Center);
     let horizontal = Layout::horizontal([Constraint::Percentage(percent_x)]).flex(Flex::Center);
-    let [area] = vertical.areas(area);
-    let [area] = horizontal.areas(area);
+    let [area] = horizontal.areas(vertical.areas::<1>(area)[0]);
     area
 }
 
@@ -52,8 +53,8 @@ fn message_area(area: Rect) -> Rect {
 
 impl App<'static> {
     pub fn new() -> Self {
-        let hosts_list = HostsList::new();
-        let editor = Editor::new();
+        let mut hosts_list = HostsList::new();
+        let editor = Rc::new(RefCell::new(Editor::new()));
         let tip = Tip::new();
         let edit_list_message_line = Line::from(vec![
             Span::raw("Press "),
@@ -77,8 +78,12 @@ impl App<'static> {
             Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" to exit dialog"),
         ]);
-        let title_dialog = TitleDialog::new();
+        let title_input = TitleInput::new();
         let message = Message();
+        let subject = Rc::new(RefCell::new(UpdateHostsContentSubject::new()));
+        subject.borrow_mut().register(editor.clone());
+        hosts_list.inject_subject(subject.clone());
+        hosts_list.init();
         App {
             running: false,
             hosts_list,
@@ -87,8 +92,8 @@ impl App<'static> {
             edit_list_message_line,
             edit_hosts_message_line,
             mode: Mode::Normal,
-            title_dialog,
-            show_title_dialog: false,
+            title_input,
+            show_title_input: false,
             message,
             show_message: false,
             message_text: String::from(""),
@@ -119,22 +124,22 @@ impl App<'static> {
                 .flex(Flex::Start)
                 .areas(main_area);
         self.hosts_list.draw(left, buf);
-        self.editor.draw(right, buf);
+        self.editor.borrow_mut().draw(right, buf);
         self.tip.draw(tip_area, buf);
-        if self.show_title_dialog {
-            self.draw_title_dialog(frame_area, frame);
+        if self.show_title_input {
+            self.draw_title_input(frame_area, frame);
         }
         if self.show_message {
             self.draw_message(frame_area, frame);
         }
     }
 
-    fn draw_title_dialog(&mut self, frame_area: Rect, frame: &mut Frame) {
+    fn draw_title_input(&mut self, frame_area: Rect, frame: &mut Frame) {
         let buf = frame.buffer_mut();
-        let area = title_dialog_area(frame_area, 60, 20);
+        let area = title_input_area(frame_area, 60, 20);
         frame.render_widget(Clear, area);
         let buf = frame.buffer_mut();
-        self.title_dialog.draw(area, buf);
+        self.title_input.draw(area, buf);
     }
 
     fn draw_message(&mut self, frame_area: Rect, frame: &mut Frame) {
@@ -146,56 +151,95 @@ impl App<'static> {
     }
 
     fn handle_crossterm_events(&mut self) -> Result<()> {
-        match event::read()? {
-            Event::Key(event) if event.kind == KeyEventKind::Press => self.on_key_event(event),
-            _ => {}
+        if let Ok(Event::Key(event)) = event::read() {
+            if event.kind == KeyEventKind::Press {
+                self.on_key_event(event)?;
+            }
         }
         Ok(())
     }
 
-    fn on_key_event(&mut self, event: KeyEvent) {
+    fn on_key_event(&mut self, event: KeyEvent) -> Result<()> {
         if self.mode == Mode::EditingTitle {
-            self.title_dialog.handle_event(
-                event,
-                |res| {
-                    match res {
-                        (true, None) => {
-                            // 关闭
-                            self.mode = Mode::Normal;
-                            self.show_message = false;
-                            self.show_title_dialog = false;
-                        },
-                        (true, Some(title)) => {
-                            self.mode = Mode::Normal;
-                            self.show_message = false;
-                            self.show_title_dialog = false;
-                            self.hosts_list.add_item(title, "".to_owned());
-                        },
-                        (false, None) => {
-                            self.show_message = false;
-                        },
-                        (false, Some(msg)) => {
-                            self.show_message = true;
-                            self.message_text = msg;
-                        }
+            self.title_input.handle_event(event, |res| {
+                match res {
+                    (true, None) => {
+                        // 关闭
+                        self.mode = Mode::Normal;
+                        self.show_message = false;
+                        self.show_title_input = false;
                     }
-                },
-            );
-            return;
+                    (true, Some(title)) => {
+                        self.mode = Mode::Normal;
+                        self.show_message = false;
+                        self.show_title_input = false;
+                        self.hosts_list
+                            .add_item(title, "".to_owned())
+                            .unwrap_or_else(|e| {
+                                e.to_string();
+                            })
+                    }
+                    (false, None) => {
+                        self.show_message = false;
+                    }
+                    (false, Some(msg)) => {
+                        self.show_message = true;
+                        self.message_text = msg;
+                    }
+                }
+            });
+            return Ok(());
         } else if self.mode == Mode::EditingHosts {
-            self.editor.handle_event(event, || {});
-            return;
+            self.editor.borrow_mut().handle_event(event, |quit, payload| {
+                match (quit, payload) {
+                    (true, None) => {
+                        self.mode = Mode::Normal;
+                        self.show_message = false
+                    },
+                    (false, None) => {
+                        self.show_message = true;
+                        self.message_text = String::from("保存成功");
+                    }
+                    _ => {}
+                }
+            });
+            return Ok(());
         }
         match (event.modifiers, event.code) {
             (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
             (KeyModifiers::SHIFT, KeyCode::Char('n') | KeyCode::Char('N')) => {
                 if self.mode == Mode::Normal {
-                    self.show_title_dialog = true;
+                    self.show_title_input = true;
                     self.mode = Mode::EditingTitle;
+                }
+            }
+            (_, KeyCode::Delete | KeyCode::Backspace) => {
+                let _ = self.hosts_list.delete_current_item();
+            }
+            (_, KeyCode::Up) => {
+                self.hosts_list.toggle_previous();
+            }
+            (_, KeyCode::Down) => {
+                self.hosts_list.toggle_next();
+            }
+            (_, KeyCode::Enter) => {
+                if let Ok(_) = self.hosts_list.toggle_on_off() {
+                    let hosts_content = self.hosts_list.generate_hosts_content()?;
+                    write_sys_hosts(hosts_content).unwrap_or_else(|e| {
+                        panic!("{}", e.to_string());
+                    });
+                }
+            }
+            (_, KeyCode::Tab) => {
+                if let Some(id) = self.hosts_list.get_selected_id() {
+                    self.mode = Mode::EditingHosts;
+                    self.editor.borrow_mut().set_id(id.to_owned());
+                    self.editor.borrow_mut().activate();
                 }
             }
             _ => {}
         }
+        Ok(())
     }
 
     fn quit(&mut self) {
