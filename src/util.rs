@@ -5,7 +5,7 @@ use crate::data::ConfigItem;
 
 pub fn find_config_by_id<'a>(
     list: &'a mut Vec<ConfigItem>,
-    id: &'a String,
+    id: &String,
 ) -> Option<&'a mut ConfigItem> {
     list.iter_mut().find(|item| {
         return item.id().to_owned() == id.to_owned();
@@ -17,7 +17,6 @@ pub fn find_selected_index(list: &Vec<ConfigItem>, id: &String) -> Option<usize>
 }
 
 pub type Result<T> = std::result::Result<T, color_eyre::eyre::Error>;
-
 
 pub fn create_new_textarea<'a>(place_holder: impl Into<String>) -> TextArea<'a> {
     let mut textarea = TextArea::default();

@@ -1,12 +1,13 @@
+use crate::single_line_textarea::{SingleLineTextarea, SinglelineTextareaType};
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-};
-use crate::single_line_textarea::SingleLineTextarea;
+use ratatui::{buffer::Buffer, layout::Rect};
 
 fn create_new_textarea<'a>() -> SingleLineTextarea<'a> {
-    SingleLineTextarea::new("输入标题".to_owned(), "Hosts标题".to_owned())
+    SingleLineTextarea::new(
+        "输入标题".to_owned(),
+        "Hosts标题".to_owned(),
+        SinglelineTextareaType::Text,
+    )
 }
 
 #[derive(Debug, Default)]
@@ -16,7 +17,9 @@ pub struct TitleInput<'a> {
 
 impl<'a> TitleInput<'a> {
     pub fn new() -> Self {
-        TitleInput { textarea: create_new_textarea() }
+        TitleInput {
+            textarea: create_new_textarea(),
+        }
     }
 
     pub fn handle_event<F: FnMut((bool, Option<String>))>(

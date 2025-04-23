@@ -9,18 +9,22 @@ use ratatui::{
     widgets::Clear,
     DefaultTerminal, Frame,
 };
-use crate::{hosts::write_sys_hosts, message::Message, observer::UpdateHostsContentSubject};
-use crate::{editor::Editor, list::HostsList, tip::Tip, title_input::TitleInput};
+use crate::{message::Message, observer::UpdateHostsContentSubject};
+use crate::editor::Editor;
+use crate::list::HostsList;
+use crate::tip::Tip;
+use crate::title_input::TitleInput;
 use crate::util::Result;
+use crate::password_input::PasswordInput;
 
 
 #[derive(Debug, Default, PartialEq)]
-
 enum Mode {
     #[default]
     Normal,
     EditingTitle,
     EditingHosts,
+    InputPassword,
 }
 
 pub struct App<'a> {
@@ -36,6 +40,8 @@ pub struct App<'a> {
     message: Message,
     show_message: bool,
     message_text: String,
+    show_password_input: bool,
+    password_input: PasswordInput<'a>
 }
 
 fn title_input_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
@@ -84,6 +90,7 @@ impl App<'static> {
         subject.borrow_mut().register(editor.clone());
         hosts_list.inject_subject(subject.clone());
         hosts_list.init();
+        let password_input = PasswordInput::new();
         App {
             running: false,
             hosts_list,
@@ -97,6 +104,8 @@ impl App<'static> {
             message,
             show_message: false,
             message_text: String::from(""),
+            show_password_input: false,
+            password_input,
         }
     }
 
@@ -132,6 +141,9 @@ impl App<'static> {
         if self.show_message {
             self.draw_message(frame_area, frame);
         }
+        if self.show_password_input {
+            self.draw_password_input(frame_area, frame);
+        }
     }
 
     fn draw_title_input(&mut self, frame_area: Rect, frame: &mut Frame) {
@@ -148,6 +160,14 @@ impl App<'static> {
         frame.render_widget(Clear, area);
         let buf = frame.buffer_mut();
         self.message.draw(self.message_text.clone(), area, buf);
+    }
+
+    fn draw_password_input(&mut self, frame_area: Rect, frame: &mut Frame) {
+        let buf = frame.buffer_mut();
+        let area = title_input_area(frame_area, 60, 20);
+        frame.render_widget(Clear, area);
+        let buf = frame.buffer_mut();
+        self.password_input.draw(area, buf);
     }
 
     fn handle_crossterm_events(&mut self) -> Result<()> {
@@ -204,6 +224,10 @@ impl App<'static> {
                 }
             });
             return Ok(());
+        } else if self.mode == Mode::InputPassword {
+            self.password_input.handle_event(event, |quit, payload| {
+                //  TODO:
+            });
         }
         match (event.modifiers, event.code) {
             (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
@@ -223,12 +247,12 @@ impl App<'static> {
                 self.hosts_list.toggle_next();
             }
             (_, KeyCode::Enter) => {
-                if let Ok(_) = self.hosts_list.toggle_on_off() {
-                    let hosts_content = self.hosts_list.generate_hosts_content()?;
-                    write_sys_hosts(hosts_content).unwrap_or_else(|e| {
-                        panic!("{}", e.to_string());
-                    });
-                }
+                self.hosts_list.toggle_on_off(|no_permission| {
+                    if no_permission {
+                        self.show_password_input = true;
+                        self.mode = Mode::InputPassword;
+                    }
+                });
             }
             (_, KeyCode::Tab) => {
                 if let Some(id) = self.hosts_list.get_selected_id() {

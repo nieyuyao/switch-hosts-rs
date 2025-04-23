@@ -33,9 +33,7 @@ pub fn set_sudo_permissions<'a>(password: impl Into<String> + Display) -> io::Re
     let mut command = Command::new("sudo");
     let args = ["-S", "chmod", "777", sys_hosts_path.as_str()];
     command.args(&args).stdin(Stdio::piped());
-
     let mut child = command.spawn()?;
-
     let mut stdin = child.stdin.take().unwrap();
     writeln!(stdin, "{}", password).expect("failed to write to stdin");
     child.wait_with_output()?;
@@ -49,7 +47,6 @@ pub fn resume_permissions(
 ) -> io::Result<()> {
     let sys_hosts_path = get_sys_hosts_path();
     let mut command = Command::new("sudo");
-    println!("{}", old_permission_mode);
     let args = ["-S", "chmod", old_permission_mode, sys_hosts_path.as_str()];
     command.args(&args).stdin(Stdio::piped());
     let mut child = command.spawn()?;

@@ -1,3 +1,4 @@
+use crate::util::create_new_textarea;
 use crossterm::event::KeyEvent;
 use ratatui::{
     buffer::Buffer,
@@ -6,26 +7,33 @@ use ratatui::{
     widgets::{Block, Borders, Widget},
 };
 use tui_textarea::TextArea;
-use crate::util::create_new_textarea;
 
-#[derive(Debug, Default)]
-enum SinglelineTextareaType {
+#[derive(Debug, Default, PartialEq)]
+pub enum SinglelineTextareaType {
     #[default]
     Text,
-    Password
+    Password,
 }
 
 #[derive(Debug, Default)]
 pub struct SingleLineTextarea<'a> {
     textarea: TextArea<'a>,
     title: String,
-    r#type: SinglelineTextareaType
+    r#type: SinglelineTextareaType,
 }
 
-
 impl<'a> SingleLineTextarea<'a> {
-    pub fn new(place_holder: String, title: String) -> Self {
-        SingleLineTextarea { textarea: create_new_textarea(place_holder), title, r#type: SinglelineTextareaType::Text }
+    pub fn new(place_holder: String, title: String, r#type: SinglelineTextareaType) -> Self {
+        let mut textarea = create_new_textarea(place_holder);
+        if r#type == SinglelineTextareaType::Password {
+            textarea.set_mask_char('*');
+        }
+        let t = SingleLineTextarea {
+            textarea,
+            title,
+            r#type,
+        };
+        t
     }
 
     pub fn get_text(&self) -> String {

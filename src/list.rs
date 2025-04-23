@@ -1,10 +1,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-
+use thiserror::Error;
 use crate::data::{
     add_item, delete_item, read_config, read_item_data, update_config_item, write_item_data,
     ConfigItem,
 };
+use crate::hosts::write_sys_hosts;
 use crate::observer::UpdateHostsContentSubject;
 use crate::util::Result;
 use crate::util::{find_config_by_id, find_selected_index};
@@ -14,6 +15,15 @@ use ratatui::{
     widgets::{Block, List, ListItem, ListState, StatefulWidget, Widget},
 };
 use uuid::Uuid;
+
+
+#[derive(Error, Debug)]
+pub enum SwitchHostsError {
+    #[error("未找到配置文件")]
+    NotFoundConfig,
+    #[error("未知错误")]
+    Unknown,
+}
 
 pub struct HostsList {
     item_list: Vec<ConfigItem>,
@@ -84,16 +94,20 @@ impl HostsList {
         Ok(())
     }
 
-    pub fn toggle_on_off(&mut self) -> Result<()> {
+    pub fn toggle_on_off(&mut self, mut callback: impl FnMut(bool) -> ()) -> Result<()> {
         let id = self.selected.clone().unwrap_or("".to_owned());
-        if let Some(config) = find_config_by_id(&mut self.item_list, &id) {
-            let on = !config.is_on();
-            update_config_item(
-                id.clone(),
-                &ConfigItem::new(id.clone(), on, config.title().to_owned()),
-            )?;
-            config.on_off(on);
+        let hosts_content = self.generate_hosts_content()?;
+        if let Err(_) = write_sys_hosts(hosts_content) {
+            callback(true);
+            return Ok(());
         }
+        let config = find_config_by_id(&mut self.item_list, &id).ok_or(SwitchHostsError::NotFoundConfig)?;
+        let on = !config.is_on();
+        update_config_item(
+            id.clone(),
+            &ConfigItem::new(id.clone(), on, config.title().to_owned()),
+        )?;
+        config.on_off(on);
         Ok(())
     }
 
@@ -152,7 +166,7 @@ impl HostsList {
         StatefulWidget::render(list, area, buf, &mut self.state);
     }
 
-    pub fn generate_hosts_content(&self) -> Result<String> {
+    pub fn generate_hosts_content(&mut self) -> Result<String> {
         let enabled = self
             .item_list
             .iter()
