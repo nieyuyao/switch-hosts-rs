@@ -232,15 +232,19 @@ impl App<'static> {
                         self.show_password_input = false;
                     },
                     (true, password) => {
-                        self.hosts_list.toggle_on_off(password, |no_permission| {
-                            if no_permission {
-                                self.mode = Mode::InputPassword;
-                                self.show_password_input = true;
-                            } else {
+                        let res = self.hosts_list.toggle_on_off(password);
+                        match res {
+                            Ok(_) => {
                                 self.mode = Mode::Normal;
                                 self.show_password_input = false;
                             }
-                        });
+                            Err(e) => {
+                                if e.to_string() == String::from("no permission") {
+                                    self.mode = Mode::InputPassword;
+                                    self.show_password_input = true;
+                                }
+                            }
+                        }
                     }
                     _ => {
                         self.mode = Mode::Normal;
@@ -258,7 +262,7 @@ impl App<'static> {
                     self.mode = Mode::EditingTitle;
                 }
             }
-            (_, KeyCode::Delete | KeyCode::Backspace) => {
+            (KeyModifiers::SHIFT, KeyCode::Char('d') | KeyCode::Char('D')) => {
                 let _ = self.hosts_list.delete_current_item();
             }
             (_, KeyCode::Up) => {
@@ -268,15 +272,19 @@ impl App<'static> {
                 self.hosts_list.toggle_next();
             }
             (_, KeyCode::Enter) => {
-                self.hosts_list.toggle_on_off(None, |no_permission| {
-                    if no_permission {
-                        self.mode = Mode::InputPassword;
-                        self.show_password_input = true;
-                    } else {
+                let res = self.hosts_list.toggle_on_off(None);
+                match res {
+                    Ok(_) => {
                         self.mode = Mode::Normal;
                         self.show_password_input = false;
                     }
-                });
+                    Err(e) => {
+                        if e.to_string() == String::from("no permission") {
+                            self.mode = Mode::InputPassword;
+                            self.show_password_input = true;
+                        }
+                    }
+                }
             }
             (_, KeyCode::Tab) => {
                 if let Some(id) = self.hosts_list.get_selected_id() {

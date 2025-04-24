@@ -4,7 +4,7 @@ use ratatui::{
     style::{Modifier, Style, Stylize},
     widgets::{block::Block, Widget},
 };
-use tui_textarea::TextArea;
+use tui_textarea::{CursorMove, TextArea};
 use crate::data::{read_item_data, write_item_data};
 use crate::observer::Observer;
 use crate::util::Result;
@@ -82,8 +82,23 @@ impl Editor<'_> {
                 callback(false, None);
             }
             (KeyModifiers::CONTROL, KeyCode::Char('z') | KeyCode::Char('Z')) => {
-                // TODO: undo
-                // TODO:移动到行尾、行首
+                self.textarea.undo();
+            }
+            (KeyModifiers::SHIFT, KeyCode::Left) => {
+                let cursor_pos = self.textarea.cursor();
+                self.textarea.move_cursor(CursorMove::Jump(cursor_pos.0 as u16, 0));
+            },
+            (KeyModifiers::SHIFT, KeyCode::Right) => {
+                let cursor_pos = self.textarea.cursor();
+                let lines = self.textarea.lines();
+                let line = lines[cursor_pos.0].clone();
+                self.textarea.move_cursor(CursorMove::Jump(cursor_pos.0 as u16, line.len() as u16));
+            },
+            (KeyModifiers::SHIFT, KeyCode::Up) => {
+                self.textarea.move_cursor(CursorMove::Head);
+            },
+            (KeyModifiers::SHIFT, KeyCode::Down) => {
+                self.textarea.move_cursor(CursorMove::End);
             }
             _ => {
                 self.textarea.input(event);

@@ -1,29 +1,21 @@
 use std::cell::RefCell;
+use uuid::Uuid;
 use std::rc::Rc;
-use thiserror::Error;
 use crate::data::{
-    add_item, delete_item, read_config, read_item_data, update_config_item, write_item_data,
+    add_item, delete_item, read_config, read_item_data, update_config_item,
     ConfigItem,
 };
 use crate::hosts::{write_sys_hosts, write_sys_hosts_with_sudo};
 use crate::observer::UpdateHostsContentSubject;
 use crate::util::Result;
 use crate::util::{find_mut_config_by_id, find_config_by_id, find_selected_index};
+use crate::data::SUDO_PASSWORD;
 use ratatui::{
     prelude::{Buffer, Rect},
     style::{Style, Stylize},
     widgets::{Block, List, ListItem, ListState, StatefulWidget, Widget},
 };
-use uuid::Uuid;
 
-
-#[derive(Error, Debug)]
-pub enum SwitchHostsError {
-    #[error("未找到配置文件")]
-    NotFoundConfig,
-    #[error("未知错误")]
-    Unknown,
-}
 
 pub struct HostsList {
     item_list: Vec<ConfigItem>,
@@ -94,26 +86,28 @@ impl HostsList {
         Ok(())
     }
 
-    pub fn toggle_on_off(&mut self, password: Option<String>, mut callback: impl FnMut(bool) -> ()) -> Result<()> {
+    pub fn toggle_on_off(&mut self, password: Option<String>) -> Result<()> {
         let id = self.selected.clone().unwrap_or("".to_owned());
-        let config = find_config_by_id(&self.item_list, &id).ok_or(SwitchHostsError::NotFoundConfig)?;
+        let config = find_config_by_id(&self.item_list, &id).ok_or(color_eyre::eyre::Error::msg("not found config"))?;
         let config_title = config.title().to_owned();
         let on = !config.is_on();
         let hosts_content = self.generate_hosts_content(&id, on)?;
         if password.is_none() && write_sys_hosts(hosts_content.clone()).is_err() {
-            callback(true);
-            return Ok(());
+            let p = SUDO_PASSWORD.lock().unwrap().clone();
+            if p.is_empty() {
+                return  Err(color_eyre::eyre::Error::msg("no permission"));
+            }
+            return self.toggle_on_off(Some(p));
         } else if write_sys_hosts_with_sudo(password.clone().unwrap_or("".to_owned()), hosts_content).is_err() {
-            callback(true);
-            return Ok(());
+            return Err(color_eyre::eyre::Error::msg("no permission"));
         }
         update_config_item(
             id.clone(),
             &ConfigItem::new(id.clone(), on, config_title),
         )?;
-        callback(false);
         let config = find_mut_config_by_id(&mut self.item_list, &id).unwrap();
         config.on_off(on);
+        *SUDO_PASSWORD.lock().unwrap() = password.unwrap();
         Ok(())
     }
 
@@ -187,6 +181,7 @@ impl HostsList {
         for item in enabled {
             let id = item.id();
             let item_content = read_item_data(id)?;
+            hosts_content.push_str("\n");
             hosts_content.push_str(&item_content);
         }
         Ok(hosts_content)
