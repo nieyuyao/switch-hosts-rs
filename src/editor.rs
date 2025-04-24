@@ -35,7 +35,7 @@ impl Editor<'_> {
 
     pub fn get_text(&self) -> String {
         let lines = self.textarea.lines();
-        let text = lines.join("");
+        let text = lines.join("\n");
         text
     }
 

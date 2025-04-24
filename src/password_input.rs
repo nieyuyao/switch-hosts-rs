@@ -33,13 +33,12 @@ impl<'a> PasswordInput<'a> {
                 self.textarea = create_new_textarea()
             }
             KeyCode::Enter => {
-                let text = self.textarea.get_text();
+                let text: String = self.textarea.get_text();
                 callback(true, Some(String::from(text)));
                 self.textarea = create_new_textarea();
             }
             _ => {
                 self.textarea.input(event);
-                callback(false, None);
             }
         }
     }

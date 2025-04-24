@@ -226,8 +226,29 @@ impl App<'static> {
             return Ok(());
         } else if self.mode == Mode::InputPassword {
             self.password_input.handle_event(event, |quit, payload| {
-                //  TODO:
+                match (quit, payload) {
+                    (true, None) => {
+                        self.mode = Mode::Normal;
+                        self.show_password_input = false;
+                    },
+                    (true, password) => {
+                        self.hosts_list.toggle_on_off(password, |no_permission| {
+                            if no_permission {
+                                self.mode = Mode::InputPassword;
+                                self.show_password_input = true;
+                            } else {
+                                self.mode = Mode::Normal;
+                                self.show_password_input = false;
+                            }
+                        });
+                    }
+                    _ => {
+                        self.mode = Mode::Normal;
+                        self.show_password_input = false;
+                    }
+                }
             });
+            return Ok(());
         }
         match (event.modifiers, event.code) {
             (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
@@ -247,10 +268,13 @@ impl App<'static> {
                 self.hosts_list.toggle_next();
             }
             (_, KeyCode::Enter) => {
-                self.hosts_list.toggle_on_off(|no_permission| {
+                self.hosts_list.toggle_on_off(None, |no_permission| {
                     if no_permission {
-                        self.show_password_input = true;
                         self.mode = Mode::InputPassword;
+                        self.show_password_input = true;
+                    } else {
+                        self.mode = Mode::Normal;
+                        self.show_password_input = false;
                     }
                 });
             }

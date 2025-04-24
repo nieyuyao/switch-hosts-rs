@@ -5,10 +5,10 @@ use crate::data::{
     add_item, delete_item, read_config, read_item_data, update_config_item, write_item_data,
     ConfigItem,
 };
-use crate::hosts::write_sys_hosts;
+use crate::hosts::{write_sys_hosts, write_sys_hosts_with_sudo};
 use crate::observer::UpdateHostsContentSubject;
 use crate::util::Result;
-use crate::util::{find_config_by_id, find_selected_index};
+use crate::util::{find_mut_config_by_id, find_config_by_id, find_selected_index};
 use ratatui::{
     prelude::{Buffer, Rect},
     style::{Style, Stylize},
@@ -94,19 +94,25 @@ impl HostsList {
         Ok(())
     }
 
-    pub fn toggle_on_off(&mut self, mut callback: impl FnMut(bool) -> ()) -> Result<()> {
+    pub fn toggle_on_off(&mut self, password: Option<String>, mut callback: impl FnMut(bool) -> ()) -> Result<()> {
         let id = self.selected.clone().unwrap_or("".to_owned());
-        let hosts_content = self.generate_hosts_content()?;
-        if let Err(_) = write_sys_hosts(hosts_content) {
+        let config = find_config_by_id(&self.item_list, &id).ok_or(SwitchHostsError::NotFoundConfig)?;
+        let config_title = config.title().to_owned();
+        let on = !config.is_on();
+        let hosts_content = self.generate_hosts_content(&id, on)?;
+        if password.is_none() && write_sys_hosts(hosts_content.clone()).is_err() {
+            callback(true);
+            return Ok(());
+        } else if write_sys_hosts_with_sudo(password.clone().unwrap_or("".to_owned()), hosts_content).is_err() {
             callback(true);
             return Ok(());
         }
-        let config = find_config_by_id(&mut self.item_list, &id).ok_or(SwitchHostsError::NotFoundConfig)?;
-        let on = !config.is_on();
         update_config_item(
             id.clone(),
-            &ConfigItem::new(id.clone(), on, config.title().to_owned()),
+            &ConfigItem::new(id.clone(), on, config_title),
         )?;
+        callback(false);
+        let config = find_mut_config_by_id(&mut self.item_list, &id).unwrap();
         config.on_off(on);
         Ok(())
     }
@@ -166,20 +172,24 @@ impl HostsList {
         StatefulWidget::render(list, area, buf, &mut self.state);
     }
 
-    pub fn generate_hosts_content(&mut self) -> Result<String> {
+    pub fn generate_hosts_content(&self, toggled_id: &String, toggled: bool) -> Result<String> {
         let enabled = self
             .item_list
             .iter()
-            .filter(|item| item.is_on())
+            .filter(|item| {
+                if item.id() == toggled_id {
+                    return toggled;
+                }
+                item.is_on()
+            })
             .collect::<Vec<_>>();
         let mut hosts_content = String::new();
         for item in enabled {
             let id = item.id();
             let item_content = read_item_data(id)?;
-            hosts_content.push_str("\n");
             hosts_content.push_str(&item_content);
         }
-        Ok("".to_owned())
+        Ok(hosts_content)
     }
 
     pub fn inject_subject(&mut self, subject: Rc<RefCell<UpdateHostsContentSubject>>) {

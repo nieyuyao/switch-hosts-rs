@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::{env, fs, path::PathBuf, vec::Vec};
 
-use crate::util::find_config_by_id;
+use crate::util::{find_config_by_id, find_mut_config_by_id};
 use crate::util::Result;
 
 const SWITCH_HOSTS_RS_DIR: &str = ".SwitchHostsRs";
@@ -199,7 +199,7 @@ pub fn add_config_item(id: String, title: String) -> Result<()> {
 
 pub fn update_config_item(id: String, new_config: &ConfigItem) -> Result<()> {
     let mut config = read_config()?;
-    if let Some(target)  = find_config_by_id(&mut config, &id) {
+    if let Some(target)  = find_mut_config_by_id(&mut config, &id) {
         target.on = new_config.is_on();
         target.title = new_config.title().to_owned();
         let new_config_json = serde_json::to_string_pretty(&config)?;

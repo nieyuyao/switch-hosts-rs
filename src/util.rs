@@ -3,11 +3,19 @@ use tui_textarea::TextArea;
 
 use crate::data::ConfigItem;
 
-pub fn find_config_by_id<'a>(
+pub fn find_mut_config_by_id<'a>(
     list: &'a mut Vec<ConfigItem>,
     id: &String,
 ) -> Option<&'a mut ConfigItem> {
     list.iter_mut().find(|item| {
+        return item.id().to_owned() == id.to_owned();
+    })
+}
+pub fn find_config_by_id<'a>(
+    list: &'a Vec<ConfigItem>,
+    id: &String,
+) -> Option<&'a ConfigItem> {
+    list.iter().find(|item| {
         return item.id().to_owned() == id.to_owned();
     })
 }
