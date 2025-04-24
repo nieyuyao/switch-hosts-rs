@@ -9,7 +9,7 @@ use ratatui::{
     widgets::Clear,
     DefaultTerminal, Frame,
 };
-use crate::{data::ConfigItemType, message::Message, observer::UpdateHostsContentSubject};
+use crate::{message::Message, observer::UpdateHostsContentSubject};
 use crate::editor::Editor;
 use crate::list::HostsList;
 use crate::tip::Tip;
@@ -290,12 +290,10 @@ impl App<'static> {
                 }
             }
             (_, KeyCode::Tab) => {
-                if let Some(item) = self.hosts_list.get_selected_item() {
-                    if *item.item_type() == ConfigItemType::User {
-                        self.mode = Mode::EditingHosts;
-                        self.editor.borrow_mut().set_id(item.id().to_string());
-                        self.editor.borrow_mut().activate();
-                    }
+                if let Some(id) = self.hosts_list.get_selected_id() {
+                    self.mode = Mode::EditingHosts;
+                    self.editor.borrow_mut().set_id(id.to_owned());
+                    self.editor.borrow_mut().activate();
                 }
             }
             _ => {}

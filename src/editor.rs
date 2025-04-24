@@ -1,3 +1,9 @@
+use crate::observer::Observer;
+use crate::util::Result;
+use crate::{
+    data::{read_item_data, write_item_data},
+    hosts::read_sys_hosts,
+};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     prelude::{Buffer, Rect},
@@ -5,15 +11,12 @@ use ratatui::{
     widgets::{block::Block, Widget},
 };
 use tui_textarea::{CursorMove, TextArea};
-use crate::{data::{read_item_data, write_item_data}, hosts::read_sys_hosts};
-use crate::observer::Observer;
-use crate::util::Result;
 
 pub struct Editor<'a> {
     name: String,
     textarea: TextArea<'a>,
     id: String,
-    activated: bool
+    activated: bool,
 }
 
 impl Editor<'_> {
@@ -23,7 +26,7 @@ impl Editor<'_> {
             name: String::new(),
             textarea,
             id: "".to_owned(),
-            activated: false
+            activated: false,
         };
         editor.inactivate();
         editor
@@ -49,20 +52,18 @@ impl Editor<'_> {
         self.textarea.set_cursor_line_style(Style::default());
         self.textarea.set_cursor_style(Style::default());
         let style = Style::new().white().on_dark_gray().bold();
-        let block = Block::bordered()
-            .style(style)
-            .title("Hosts Content");
+        let block = Block::bordered().style(style).title("Hosts Content");
         self.textarea.set_block(block);
     }
-    
+
     pub fn activate(&mut self) {
         self.activated = true;
-        self.textarea.set_cursor_line_style(Style::default().add_modifier(Modifier::UNDERLINED));
-        self.textarea.set_cursor_style(Style::default().add_modifier(Modifier::REVERSED));
+        self.textarea
+            .set_cursor_line_style(Style::default().add_modifier(Modifier::UNDERLINED));
+        self.textarea
+            .set_cursor_style(Style::default().add_modifier(Modifier::REVERSED));
         let style = Style::new().white().on_black().bold();
-        let block = Block::bordered()
-            .style(style)
-            .title("Hosts Content");
+        let block = Block::bordered().style(style).title("Hosts Content");
         self.textarea.set_block(block);
     }
 
@@ -71,6 +72,7 @@ impl Editor<'_> {
         event: KeyEvent,
         mut callback: impl FnMut(bool, Option<String>) -> (),
     ) -> () {
+        let is_system = self.id == String::from("system");
         match (event.modifiers, event.code) {
             (_, KeyCode::Esc) => {
                 self.inactivate();
@@ -78,29 +80,39 @@ impl Editor<'_> {
                 callback(true, None);
             }
             (KeyModifiers::CONTROL, KeyCode::Char('s') | KeyCode::Char('S')) => {
+                if is_system {
+                    return;
+                }
                 self.save_item_content(self.get_text());
                 callback(false, None);
             }
             (KeyModifiers::CONTROL, KeyCode::Char('z') | KeyCode::Char('Z')) => {
+                if is_system {
+                    return;
+                }
                 self.textarea.undo();
             }
             (KeyModifiers::SHIFT, KeyCode::Left) => {
-                let cursor_pos = self.textarea.cursor();
-                self.textarea.move_cursor(CursorMove::Jump(cursor_pos.0 as u16, 0));
-            },
-            (KeyModifiers::SHIFT, KeyCode::Right) => {
-                let cursor_pos = self.textarea.cursor();
-                let lines = self.textarea.lines();
-                let line = lines[cursor_pos.0].clone();
-                self.textarea.move_cursor(CursorMove::Jump(cursor_pos.0 as u16, line.len() as u16));
-            },
-            (KeyModifiers::SHIFT, KeyCode::Up) => {
                 self.textarea.move_cursor(CursorMove::Head);
-            },
-            (KeyModifiers::SHIFT, KeyCode::Down) => {
+            }
+            (KeyModifiers::SHIFT, KeyCode::Right) => {
                 self.textarea.move_cursor(CursorMove::End);
             }
-            _ => {
+            (KeyModifiers::SHIFT, KeyCode::Up) => {
+                self.textarea.move_cursor(CursorMove::Top);
+            }
+            (KeyModifiers::SHIFT, KeyCode::Down) => {
+                self.textarea.move_cursor(CursorMove::Bottom);
+            }
+            other => {
+                if is_system
+                    && other.1 != KeyCode::Up
+                    && other.1 != KeyCode::Down
+                    && other.1 != KeyCode::Left
+                    && other.1 != KeyCode::Right
+                {
+                    return;
+                }
                 self.textarea.input(event);
             }
         }
