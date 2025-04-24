@@ -1,6 +1,6 @@
 use ratatui::{style::{palette::material::{GREEN, WHITE}, Modifier, Style}, text::Line, widgets::ListItem};
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Number, Value};
 use std::{env, fs, path::PathBuf, sync::Mutex, vec::Vec};
 
 use crate::util::find_mut_config_by_id;
@@ -11,16 +11,34 @@ pub static SUDO_PASSWORD: Mutex<String> = Mutex::new(String::new());
 
 const SWITCH_HOSTS_RS_DIR: &str = ".SwitchHostsRs";
 
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub enum ConfigItemType {
+    System,
+    #[default]
+    User
+}
+
+impl From<i64> for ConfigItemType {
+    fn from(value: i64) -> Self {
+        if value >= 1 {
+            ConfigItemType::User
+        } else {
+            ConfigItemType::System
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct ConfigItem {
     id: String,
     on: bool,
     title: String,
+    item_type: ConfigItemType
 }
 
 impl ConfigItem {
-    pub fn new(id: String, on: bool, title: String) -> Self {
-        ConfigItem { id, on, title }
+    pub fn new(id: String, on: bool, title: String, item_type: ConfigItemType) -> Self {
+        ConfigItem { id, on, title, item_type }
     }
 
     pub fn is_on(&self) -> bool {
@@ -38,6 +56,10 @@ impl ConfigItem {
     pub fn title(&self) -> &String {
         &self.title
     }
+
+    pub fn item_type(&self) -> &ConfigItemType {
+        &self.item_type
+    }
 }
 
 impl From<&ConfigItem> for ListItem<'_> {
@@ -50,7 +72,6 @@ impl From<&ConfigItem> for ListItem<'_> {
         } else {
             Line::styled(format!("{}", value.title), WHITE)
         };
-
         ListItem::new(line)
     }
 }
@@ -151,6 +172,7 @@ pub fn read_config() -> Result<Vec<ConfigItem>> {
                     id: item["id"].as_str().unwrap().to_owned(),
                     on: item["on"].as_bool().unwrap_or(false),
                     title: item["title"].as_str().unwrap().to_owned(),
+                    item_type: item["item_type"].as_number().unwrap_or(&Number::from(1)).as_i64().unwrap().into()
                 })
                 .collect()),
             _ => Ok(empty),
@@ -193,6 +215,7 @@ pub fn add_config_item(id: String, title: String) -> Result<()> {
                 id,
                 title,
                 on: false,
+                item_type: ConfigItemType::User
             });
             deserialize_and_write_config(&config)?;
         }

@@ -3,7 +3,7 @@ use uuid::Uuid;
 use std::rc::Rc;
 use crate::data::{
     add_item, delete_item, read_config, read_item_data, update_config_item,
-    ConfigItem,
+    ConfigItem, ConfigItemType,
 };
 use crate::hosts::{write_sys_hosts, write_sys_hosts_with_sudo};
 use crate::observer::UpdateHostsContentSubject;
@@ -36,20 +36,23 @@ impl HostsList {
         }
     }
 
+    pub fn create_sys_item(&self) -> ConfigItem {
+        ConfigItem::new(String::from("system"), true, String::from("system"), ConfigItemType::System)
+    }
+
     pub fn init(&mut self) {
-        if let Ok(config_item_list) = read_config() {
-            self.item_list = config_item_list;
+        self.item_list.push(self.create_sys_item());
+        if let Ok(mut config_item_list) = read_config() {
+            self.item_list.append(&mut config_item_list);
         }
-        if !self.item_list.is_empty() {
-            self.selected = Some(self.item_list[0].id().to_owned());
-            self.dispatch_update_hosts_content_subject();
-        }
+        self.selected = Some(self.item_list[0].id().to_owned());
+        self.dispatch_update_hosts_content_subject();
     }
 
     pub fn add_item(&mut self, title: String, content: String) -> Result<()> {
         let id = Uuid::new_v4().to_string();
         add_item(id.clone(), title.clone(), content).and_then(|_| {
-            let item = ConfigItem::new(id.clone(), false, title);
+            let item = ConfigItem::new(id.clone(), false, title, ConfigItemType::User);
             self.item_list.push(item);
             if self.item_list.len() == 1 {
                 self.selected = Some(id);
@@ -103,7 +106,7 @@ impl HostsList {
         }
         update_config_item(
             id.clone(),
-            &ConfigItem::new(id.clone(), on, config_title),
+            &ConfigItem::new(id.clone(), on, config_title,ConfigItemType::User),
         )?;
         let config = find_mut_config_by_id(&mut self.item_list, &id).unwrap();
         config.on_off(on);
@@ -113,6 +116,11 @@ impl HostsList {
 
     pub fn get_selected_id(&self) -> &Option<String> {
         &self.selected
+    }
+
+    pub fn get_selected_item(&self) -> Option<&ConfigItem> {
+        let id = self.selected.clone().unwrap_or("".to_owned());
+        find_config_by_id(&self.item_list, &id)
     }
 
     pub fn toggle_previous(&mut self) {

@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{block::Block, Widget},
 };
 use tui_textarea::{CursorMove, TextArea};
-use crate::data::{read_item_data, write_item_data};
+use crate::{data::{read_item_data, write_item_data}, hosts::read_sys_hosts};
 use crate::observer::Observer;
 use crate::util::Result;
 
@@ -114,7 +114,14 @@ impl Editor<'_> {
 impl Observer for Editor<'_> {
     fn update(&mut self, current_id: &str) {
         let id = current_id.to_owned();
-        read_item_data(&id).and_then(|content| {
+        let res: Result<String> = {
+            if id == String::from("system") {
+                read_sys_hosts()
+            } else {
+                read_item_data(&id)
+            }
+        };
+        res.and_then(|content| {
             let textarea = TextArea::from(content.split("\n"));
             self.textarea = textarea;
             if self.activated {

@@ -1,10 +1,12 @@
 use std::{
     fmt::Display,
     fs,
-    io::{self, Write},
+    io::Write,
     os::unix::fs::PermissionsExt,
     process::{Command, Stdio},
 };
+
+use crate::util::Result;
 
 const CONTENT_START: &str = "# --- SWITCHHOSTS_RS_CONTENT_START ---";
 
@@ -22,13 +24,13 @@ fn check_access() -> bool {
     }
 }
 
-pub fn write_sys_hosts(content: impl Into<String> + AsRef<[u8]>) -> io::Result<()> {
+pub fn write_sys_hosts(content: impl Into<String> + AsRef<[u8]>) -> Result<()> {
     let hosts_path = get_sys_hosts_path();
     fs::write(&hosts_path, &content)?;
     Ok(())
 }
 
-pub fn set_sudo_permissions<'a>(password: impl Into<String> + Display) -> io::Result<()> {
+pub fn set_sudo_permissions<'a>(password: impl Into<String> + Display) -> Result<()> {
     let sys_hosts_path = get_sys_hosts_path();
     let mut command = Command::new("sudo");
     let args = ["-S", "chmod", "777", sys_hosts_path.as_str()];
@@ -44,7 +46,7 @@ pub fn set_sudo_permissions<'a>(password: impl Into<String> + Display) -> io::Re
 pub fn resume_permissions(
     password: impl Into<String> + Display,
     old_permission_mode: &str,
-) -> io::Result<()> {
+) -> Result<()> {
     let sys_hosts_path = get_sys_hosts_path();
     let mut command = Command::new("sudo");
     let args = ["-S", "chmod", old_permission_mode, sys_hosts_path.as_str()];
@@ -56,7 +58,7 @@ pub fn resume_permissions(
     Ok(())
 }
 
-pub fn write_sys_hosts_with_sudo(password: String, appended: String) -> io::Result<()> {
+pub fn write_sys_hosts_with_sudo(password: String, appended: String) -> Result<()> {
     let sys_hosts_path = get_sys_hosts_path();
     let metadata = fs::metadata(&sys_hosts_path)?;
     let old_mode = metadata.permissions().mode();
@@ -84,7 +86,8 @@ pub fn write_sys_hosts_with_sudo(password: String, appended: String) -> io::Resu
     Ok(())
 }
 
-pub fn read_sys_hosts() -> io::Result<String> {
+pub fn read_sys_hosts() -> Result<String> {
     let hosts_path = get_sys_hosts_path();
-    fs::read(&hosts_path).map(|buf| String::from_utf8(buf).unwrap_or(String::new()))
+    let content = fs::read(&hosts_path).map(|buf| String::from_utf8(buf).unwrap_or(String::new())).unwrap();
+    Ok(content)
 }
