@@ -100,18 +100,14 @@ impl HostsList {
         let config_title = config.title().to_owned();
         let on = !config.is_on();
         let hosts_content = self.generate_hosts_content(&id, on)?;
-        if password.is_none() && write_sys_hosts(hosts_content.clone()).is_err() {
-            let p = SUDO_PASSWORD.lock().unwrap().clone();
-            if p.is_empty() {
+        if password.is_none() {
+            if write_sys_hosts(hosts_content.clone()).is_err() {
                 return Err(color_eyre::eyre::Error::msg("no permission"));
             }
-            return self.toggle_on_off(Some(p));
         } else if write_sys_hosts_with_sudo(
             password.clone().unwrap_or("".to_owned()),
             hosts_content,
-        )
-        .is_err()
-        {
+        ).is_err() {
             return Err(color_eyre::eyre::Error::msg("no permission"));
         }
         update_config_item(
@@ -120,7 +116,7 @@ impl HostsList {
         )?;
         let config = find_mut_config_by_id(&mut self.item_list, &id).unwrap();
         config.on_off(on);
-        *SUDO_PASSWORD.lock().unwrap() = password.unwrap();
+        *SUDO_PASSWORD.lock().unwrap() = password.unwrap_or(String::new());
         Ok(())
     }
 
@@ -189,6 +185,9 @@ impl HostsList {
             .item_list
             .iter()
             .filter(|item| {
+                if item.id() == "system" {
+                    return false;
+                }
                 if item.id() == toggled_id {
                     return toggled;
                 }

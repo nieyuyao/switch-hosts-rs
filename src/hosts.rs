@@ -1,9 +1,8 @@
 use std::{
     fmt::Display,
     fs,
-    io::Write,
     os::unix::fs::PermissionsExt,
-    process::{Command, Stdio},
+    process::Command,
 };
 
 use crate::util::Result;
@@ -24,22 +23,24 @@ fn check_access() -> bool {
     }
 }
 
-pub fn write_sys_hosts(content: impl Into<String> + AsRef<[u8]>) -> Result<()> {
+pub fn write_sys_hosts(appended: impl Into<String> + AsRef<[u8]>) -> Result<()> {
     let hosts_path = get_sys_hosts_path();
-    fs::write(&hosts_path, &content)?;
+    let hosts_content = generate_sys_hosts_content(appended.into());
+    fs::write(&hosts_path, &hosts_content)?;
     Ok(())
 }
 
 pub fn set_sudo_permissions<'a>(password: impl Into<String> + Display) -> Result<()> {
     let sys_hosts_path = get_sys_hosts_path();
-    let mut command = Command::new("sudo");
-    let args = ["-S", "chmod", "777", sys_hosts_path.as_str()];
-    command.args(&args).stdin(Stdio::piped());
-    let mut child = command.spawn()?;
-    let mut stdin = child.stdin.take().unwrap();
-    writeln!(stdin, "{}", password).expect("failed to write to stdin");
-    child.wait_with_output()?;
+    let arg_str: String = format!(r#"echo "{}" | sudo -S chmod 777 {}"#, password, sys_hosts_path);
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(arg_str)
+        .output()?;
 
+    if !output.status.success() {
+        return  Err(color_eyre::eyre::Error::msg("Failed to execute sudo command"));
+    }
     Ok(())
 }
 
@@ -48,14 +49,37 @@ pub fn resume_permissions(
     old_permission_mode: &str,
 ) -> Result<()> {
     let sys_hosts_path = get_sys_hosts_path();
-    let mut command = Command::new("sudo");
-    let args = ["-S", "chmod", old_permission_mode, sys_hosts_path.as_str()];
-    command.args(&args).stdin(Stdio::piped());
-    let mut child = command.spawn()?;
-    let mut stdin = child.stdin.take().unwrap();
-    writeln!(stdin, "{}", password).expect("failed to write to stdin");
-    child.wait_with_output()?;
+    let arg_str: String = format!(r#"echo "{}" | sudo -S chmod {} {}"#, password, old_permission_mode, sys_hosts_path);
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(arg_str)
+        .output()?;
+
+    if !output.status.success() {
+        return  Err(color_eyre::eyre::Error::msg("Failed to execute sudo command"));
+    }
     Ok(())
+}
+
+pub fn generate_sys_hosts_content(appended: String) -> String {
+    let mut content = read_sys_hosts().unwrap();
+    let start_index = content.find(CONTENT_START);
+    let end_index = content.find(CONTENT_END);
+    match [start_index, end_index] {
+        [Some(start), Some(end)] => {
+            let mut new_appended = String::from("\n");
+            new_appended.push_str(&appended);
+            new_appended.push_str("\n");
+            content.replace_range((start + CONTENT_START.len())..end, new_appended.as_str());
+        }
+        _ => {
+            content.push_str(&format!(
+                "\n\n{}\n{}\n{}\n",
+                CONTENT_START, appended, CONTENT_END
+            ));
+        }
+    }
+    content
 }
 
 pub fn write_sys_hosts_with_sudo(password: String, appended: String) -> Result<()> {
@@ -65,22 +89,7 @@ pub fn write_sys_hosts_with_sudo(password: String, appended: String) -> Result<(
     let mask = 0o000777;
     let old_permission_mode = old_mode & mask;
     set_sudo_permissions(&password)?;
-
-    let mut hosts_content = String::from_utf8(fs::read(&sys_hosts_path)?).unwrap();
-    let start_index = hosts_content.find(CONTENT_START);
-    let end_index = hosts_content.find(CONTENT_END);
-    let a = start_index..end_index;
-    match [start_index, end_index] {
-        [Some(start), Some(end)] => {
-            let mut new_appended = String::from("\n");
-            new_appended.push_str(&appended);
-            new_appended.push_str("\n");
-            hosts_content.replace_range((start + CONTENT_START.len())..end, new_appended.as_str());
-        }
-        _ => {
-            hosts_content.push_str(&format!("\n\n{}\n{}\n{}\n", CONTENT_START, appended, CONTENT_END));
-        }
-    }
+    let hosts_content = generate_sys_hosts_content(appended);
     fs::write(&sys_hosts_path, &hosts_content)?;
     resume_permissions(&password, format!("{:o}", old_permission_mode).as_str())?;
     Ok(())
@@ -88,6 +97,8 @@ pub fn write_sys_hosts_with_sudo(password: String, appended: String) -> Result<(
 
 pub fn read_sys_hosts() -> Result<String> {
     let hosts_path = get_sys_hosts_path();
-    let content = fs::read(&hosts_path).map(|buf| String::from_utf8(buf).unwrap_or(String::new())).unwrap();
+    let content = fs::read(&hosts_path)
+        .map(|buf| String::from_utf8(buf).unwrap_or(String::new()))
+        .unwrap();
     Ok(content)
 }

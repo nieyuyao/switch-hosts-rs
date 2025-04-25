@@ -43,6 +43,7 @@ impl Editor<'_> {
     }
 
     pub fn save_item_content(&self, content: String) -> Result<()> {
+        // FIXME: 需要同步更新sys hosts
         write_item_data(&self.id, content)?;
         Ok(())
     }
@@ -106,10 +107,10 @@ impl Editor<'_> {
             (KeyModifiers::SHIFT, KeyCode::Right) => {
                 self.textarea.move_cursor(CursorMove::End);
             }
-            (KeyModifiers::SHIFT, KeyCode::Up) => {
+            (KeyModifiers::SHIFT, KeyCode::Char('o') | KeyCode::Char('O')) => {
                 self.textarea.move_cursor(CursorMove::Top);
             }
-            (KeyModifiers::SHIFT, KeyCode::Down) => {
+            (KeyModifiers::SHIFT, KeyCode::Char('g') | KeyCode::Char('G')) => {
                 self.textarea.move_cursor(CursorMove::Bottom);
             }
             other => {

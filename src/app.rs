@@ -87,8 +87,10 @@ impl App<'static> {
         let edit_hosts_message_line = Line::from(vec![
             Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" 退出编辑模式 "),
-            Span::styled("Shit+↑↓←→", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 移动光标 "),
+            Span::styled("Shit+←/→", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" 移动光标至行首/行尾 "),
+            Span::styled("Shit+o/g", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" 移动光标至顶部/底部 "),
             Span::styled("Ctrl+Z", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" 撤销编辑 "),
         ]);
