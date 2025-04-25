@@ -1,21 +1,20 @@
-use std::cell::RefCell;
-use uuid::Uuid;
-use std::rc::Rc;
+use crate::data::SUDO_PASSWORD;
 use crate::data::{
-    add_item, delete_item, read_config, read_item_data, update_config_item,
-    ConfigItem, ConfigItemType,
+    add_item, delete_item, read_config, read_item_data, update_config_item, ConfigItem,
+    ConfigItemType,
 };
 use crate::hosts::{write_sys_hosts, write_sys_hosts_with_sudo};
 use crate::observer::UpdateHostsContentSubject;
 use crate::util::Result;
-use crate::util::{find_mut_config_by_id, find_config_by_id, find_selected_index};
-use crate::data::SUDO_PASSWORD;
+use crate::util::{find_config_by_id, find_mut_config_by_id, find_selected_index};
 use ratatui::{
     prelude::{Buffer, Rect},
     style::{Style, Stylize},
     widgets::{Block, List, ListItem, ListState, StatefulWidget, Widget},
 };
-
+use std::cell::RefCell;
+use std::rc::Rc;
+use uuid::Uuid;
 
 pub struct HostsList {
     item_list: Vec<ConfigItem>,
@@ -37,7 +36,12 @@ impl HostsList {
     }
 
     pub fn create_sys_item(&self) -> ConfigItem {
-        ConfigItem::new(String::from("system"), true, String::from("system"), ConfigItemType::System)
+        ConfigItem::new(
+            String::from("system"),
+            true,
+            String::from("system"),
+            ConfigItemType::System,
+        )
     }
 
     pub fn init(&mut self) {
@@ -91,22 +95,28 @@ impl HostsList {
 
     pub fn toggle_on_off(&mut self, password: Option<String>) -> Result<()> {
         let id = self.selected.clone().unwrap_or("".to_owned());
-        let config = find_config_by_id(&self.item_list, &id).ok_or(color_eyre::eyre::Error::msg("not found config"))?;
+        let config = find_config_by_id(&self.item_list, &id)
+            .ok_or(color_eyre::eyre::Error::msg("not found config"))?;
         let config_title = config.title().to_owned();
         let on = !config.is_on();
         let hosts_content = self.generate_hosts_content(&id, on)?;
         if password.is_none() && write_sys_hosts(hosts_content.clone()).is_err() {
             let p = SUDO_PASSWORD.lock().unwrap().clone();
             if p.is_empty() {
-                return  Err(color_eyre::eyre::Error::msg("no permission"));
+                return Err(color_eyre::eyre::Error::msg("no permission"));
             }
             return self.toggle_on_off(Some(p));
-        } else if write_sys_hosts_with_sudo(password.clone().unwrap_or("".to_owned()), hosts_content).is_err() {
+        } else if write_sys_hosts_with_sudo(
+            password.clone().unwrap_or("".to_owned()),
+            hosts_content,
+        )
+        .is_err()
+        {
             return Err(color_eyre::eyre::Error::msg("no permission"));
         }
         update_config_item(
             id.clone(),
-            &ConfigItem::new(id.clone(), on, config_title,ConfigItemType::User),
+            &ConfigItem::new(id.clone(), on, config_title, ConfigItemType::User),
         )?;
         let config = find_mut_config_by_id(&mut self.item_list, &id).unwrap();
         config.on_off(on);
@@ -202,7 +212,7 @@ impl HostsList {
     pub fn dispatch_update_hosts_content_subject(&self) {
         if let Some(s) = self.subject.clone() {
             s.borrow()
-            .notify(self.selected.clone().unwrap_or("".to_owned()).as_str());
+                .notify(self.selected.clone().unwrap_or("".to_owned()).as_str());
         }
     }
 }

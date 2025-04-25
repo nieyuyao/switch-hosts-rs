@@ -1,6 +1,17 @@
-use std::{cell::RefCell, rc::Rc};
-
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crate::editor::Editor;
+use crate::list::HostsList;
+use crate::password_input::PasswordInput;
+use crate::tip::Tip;
+use crate::title_input::TitleInput;
+use crate::util::Result;
+use crate::{message::Message, observer::UpdateHostsContentSubject};
+use crossterm::{
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
+        MouseEventKind,
+    },
+    terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
+};
 use ratatui::{
     layout::{Constraint, Flex, Layout},
     prelude::Rect,
@@ -9,13 +20,10 @@ use ratatui::{
     widgets::Clear,
     DefaultTerminal, Frame,
 };
-use crate::{message::Message, observer::UpdateHostsContentSubject};
-use crate::editor::Editor;
-use crate::list::HostsList;
-use crate::tip::Tip;
-use crate::title_input::TitleInput;
-use crate::util::Result;
-use crate::password_input::PasswordInput;
+use std::time::Instant;
+use std::{cell::RefCell, io, rc::Rc};
+
+const MOUSE_SCROLL_THROTTLE_INTERVAL: u128 = 100;
 
 
 #[derive(Debug, Default, PartialEq)]
@@ -41,7 +49,8 @@ pub struct App<'a> {
     show_message: bool,
     message_text: String,
     show_password_input: bool,
-    password_input: PasswordInput<'a>
+    password_input: PasswordInput<'a>,
+    instant: Instant,
 }
 
 fn title_input_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
@@ -109,10 +118,15 @@ impl App<'static> {
             message_text: String::from(""),
             show_password_input: false,
             password_input,
+            instant: Instant::now(),
         }
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
+        terminal::enable_raw_mode();
+        let stdout = io::stdout();
+        let mut stdout = stdout.lock();
+        crossterm::execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
         self.running = true;
         while self.running {
             if self.mode == Mode::Normal {
@@ -123,6 +137,12 @@ impl App<'static> {
             })?;
             self.handle_crossterm_events()?;
         }
+        terminal::disable_raw_mode();
+        crossterm::execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        )?;
         Ok(())
     }
 
@@ -174,10 +194,30 @@ impl App<'static> {
     }
 
     fn handle_crossterm_events(&mut self) -> Result<()> {
-        if let Ok(Event::Key(event)) = event::read() {
-            if event.kind == KeyEventKind::Press {
+        match event::read() {
+            Ok(Event::Key(event)) => {
                 self.on_key_event(event)?;
             }
+            Ok(Event::Mouse(e)) => {
+                if self.instant.elapsed().as_millis() < MOUSE_SCROLL_THROTTLE_INTERVAL {
+                    return Ok(());
+                }
+                self.instant = Instant::now();
+                if e.kind == MouseEventKind::ScrollUp {
+                    if self.mode == Mode::Normal {
+                        self.hosts_list.toggle_previous();
+                    } else if self.mode == Mode::EditingHosts {
+                        self.editor.borrow_mut().cursor_move_up();
+                    }
+                } else if e.kind == MouseEventKind::ScrollDown {
+                    if self.mode == Mode::Normal {
+                        self.hosts_list.toggle_next();
+                    } else if self.mode == Mode::EditingHosts {
+                        self.editor.borrow_mut().cursor_move_down();
+                    }
+                }
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -213,27 +253,27 @@ impl App<'static> {
             });
             return Ok(());
         } else if self.mode == Mode::EditingHosts {
-            self.editor.borrow_mut().handle_event(event, |quit, payload| {
-                match (quit, payload) {
+            self.editor
+                .borrow_mut()
+                .handle_event(event, |quit, payload| match (quit, payload) {
                     (true, None) => {
                         self.mode = Mode::Normal;
                         self.show_message = false
-                    },
+                    }
                     (false, None) => {
                         self.show_message = true;
                         self.message_text = String::from("保存成功");
                     }
                     _ => {}
-                }
-            });
+                });
             return Ok(());
         } else if self.mode == Mode::InputPassword {
-            self.password_input.handle_event(event, |quit, payload| {
-                match (quit, payload) {
+            self.password_input
+                .handle_event(event, |quit, payload| match (quit, payload) {
                     (true, None) => {
                         self.mode = Mode::Normal;
                         self.show_password_input = false;
-                    },
+                    }
                     (true, password) => {
                         let res = self.hosts_list.toggle_on_off(password);
                         match res {
@@ -253,8 +293,7 @@ impl App<'static> {
                         self.mode = Mode::Normal;
                         self.show_password_input = false;
                     }
-                }
-            });
+                });
             return Ok(());
         }
         match (event.modifiers, event.code) {

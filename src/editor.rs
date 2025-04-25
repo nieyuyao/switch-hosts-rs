@@ -67,6 +67,14 @@ impl Editor<'_> {
         self.textarea.set_block(block);
     }
 
+    pub fn cursor_move_up(&mut self) {
+        self.textarea.move_cursor(CursorMove::Down);
+    }
+
+    pub fn cursor_move_down(&mut self) {
+        self.textarea.move_cursor(CursorMove::Up);
+    }
+
     pub fn handle_event(
         &mut self,
         event: KeyEvent,
