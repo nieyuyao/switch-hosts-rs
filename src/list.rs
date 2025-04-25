@@ -176,7 +176,7 @@ impl HostsList {
             .iter()
             .map(|hosts_item| ListItem::from(hosts_item))
             .collect();
-        let list = List::new(items).block(block).highlight_symbol(">");
+        let list = List::new(items).block(block).highlight_symbol("👉");
         self.state.select(find_selected_index(
             &self.item_list,
             &self.selected.clone().unwrap_or("".to_owned()),

@@ -1,11 +1,14 @@
-use ratatui::{style::{palette::material::{GREEN, WHITE}, Modifier, Style}, text::Line, widgets::ListItem};
+use ratatui::{
+    style::{Color, Modifier, Style},
+    text::Line,
+    widgets::ListItem,
+};
 use serde::Serialize;
 use serde_json::{Number, Value};
 use std::{env, fs, path::PathBuf, sync::Mutex, vec::Vec};
 
 use crate::util::find_mut_config_by_id;
 use crate::util::Result;
-
 
 pub static SUDO_PASSWORD: Mutex<String> = Mutex::new(String::new());
 
@@ -15,7 +18,7 @@ const SWITCH_HOSTS_RS_DIR: &str = ".SwitchHostsRs";
 pub enum ConfigItemType {
     System,
     #[default]
-    User
+    User,
 }
 
 impl From<i64> for ConfigItemType {
@@ -33,12 +36,17 @@ pub struct ConfigItem {
     id: String,
     on: bool,
     title: String,
-    item_type: ConfigItemType
+    item_type: ConfigItemType,
 }
 
 impl ConfigItem {
     pub fn new(id: String, on: bool, title: String, item_type: ConfigItemType) -> Self {
-        ConfigItem { id, on, title, item_type }
+        ConfigItem {
+            id,
+            on,
+            title,
+            item_type,
+        }
     }
 
     pub fn is_on(&self) -> bool {
@@ -67,15 +75,19 @@ impl From<&ConfigItem> for ListItem<'_> {
         let line = if value.on {
             Line::styled(
                 format!("✓ {}", value.title),
-                Style::new().fg(GREEN.c100).add_modifier(Modifier::BOLD),
+                Style::new()
+                    .fg(Color::LightGreen)
+                    .add_modifier(Modifier::BOLD),
             )
         } else {
-            Line::styled(format!("{}", value.title), WHITE)
+            Line::styled(
+                format!("{}", value.title),
+                Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
+            )
         };
         ListItem::new(line)
     }
 }
-
 
 pub fn get_home_dir() -> Option<PathBuf> {
     env::var_os("HOME").map(Into::into)
@@ -138,7 +150,7 @@ pub fn delete_item(id: &String) -> Result<()> {
     if fs::exists(file_name)? {
         match fs::remove_file(&file_name) {
             Ok(_) => delete_config_item(id),
-            Err(err) => Err(err.into())
+            Err(err) => Err(err.into()),
         }
     } else {
         Ok(())
@@ -152,7 +164,7 @@ pub fn add_item(id: String, title: String, content: String) -> Result<()> {
     let file_name = &data_dir.join(format!("{}.txt", id.clone()));
     match fs::write(file_name, content) {
         Ok(_) => add_config_item(id, title),
-        Err(err) => Err(err.into())
+        Err(err) => Err(err.into()),
     }
 }
 
@@ -172,7 +184,12 @@ pub fn read_config() -> Result<Vec<ConfigItem>> {
                     id: item["id"].as_str().unwrap().to_owned(),
                     on: item["on"].as_bool().unwrap_or(false),
                     title: item["title"].as_str().unwrap().to_owned(),
-                    item_type: item["item_type"].as_number().unwrap_or(&Number::from(1)).as_i64().unwrap().into()
+                    item_type: item["item_type"]
+                        .as_number()
+                        .unwrap_or(&Number::from(1))
+                        .as_i64()
+                        .unwrap()
+                        .into(),
                 })
                 .collect()),
             _ => Ok(empty),
@@ -196,8 +213,8 @@ pub fn delete_config_item(id: &String) -> Result<()> {
     Ok(())
 }
 
-pub fn deserialize_and_write_config(config: &Vec<ConfigItem>) ->  Result<()>  {
-    let json= serde_json::to_string_pretty(&config)?;
+pub fn deserialize_and_write_config(config: &Vec<ConfigItem>) -> Result<()> {
+    let json = serde_json::to_string_pretty(&config)?;
     write_config(json)?;
     Ok(())
 }
@@ -209,13 +226,13 @@ pub fn add_config_item(id: String, title: String) -> Result<()> {
             let item = config.get_mut(index).unwrap();
             item.title = title;
             deserialize_and_write_config(&config)?;
-        },
+        }
         _ => {
             config.push(ConfigItem {
                 id,
                 title,
                 on: false,
-                item_type: ConfigItemType::User
+                item_type: ConfigItemType::User,
             });
             deserialize_and_write_config(&config)?;
         }
@@ -225,7 +242,7 @@ pub fn add_config_item(id: String, title: String) -> Result<()> {
 
 pub fn update_config_item(id: String, new_config: &ConfigItem) -> Result<()> {
     let mut config = read_config()?;
-    if let Some(target)  = find_mut_config_by_id(&mut config, &id) {
+    if let Some(target) = find_mut_config_by_id(&mut config, &id) {
         target.on = new_config.is_on();
         target.title = new_config.title().to_owned();
         let new_config_json = serde_json::to_string_pretty(&config)?;

@@ -50,6 +50,7 @@ impl<'a> SingleLineTextarea<'a> {
         let block = Block::default()
             .borders(Borders::ALL)
             .bg(Color::Blue)
+            .fg(Color::White)
             .title(self.title.clone());
         self.textarea.set_block(block);
         self.textarea.render(area, buf);

@@ -42,6 +42,7 @@ pub struct App<'a> {
     tip: Tip<'a>,
     edit_list_message_line: Line<'a>,
     edit_hosts_message_line: Line<'a>,
+    edit_title_message_line: Line<'a>,
     mode: Mode,
     title_input: TitleInput<'a>,
     show_title_input: bool,
@@ -72,29 +73,30 @@ impl App<'static> {
         let editor = Rc::new(RefCell::new(Editor::new()));
         let tip = Tip::new();
         let edit_list_message_line = Line::from(vec![
-            Span::raw("Press "),
-            Span::styled("^N", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" to add new hosts, "),
-            Span::styled("^D", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" to delete one, "),
-            Span::styled("^C", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" to quit, "),
+            Span::styled("Ctrl+N", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" 添加hosts "),
+            Span::styled("Ctrl+D", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" 删除hosts "),
+            Span::styled("Ctrl+C", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" 退出 "),
             Span::styled("Tab", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" to edit hosts"),
+            Span::raw(" 编辑hosts "),
+            Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" 启用/禁用hosts "),
         ]);
         let edit_hosts_message_line = Line::from(vec![
-            Span::raw("Press "),
-            Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" to inert new line "),
             Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" to exit edit"),
+            Span::raw(" 退出编辑模式 "),
+            Span::styled("Shit+↑↓←→", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" 移动光标 "),
+            Span::styled("Ctrl+Z", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" 撤销编辑 "),
         ]);
         let edit_title_message_line = Line::from(vec![
-            Span::raw("Press "),
             Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" to add new hosts,  "),
+            Span::raw(" 确定添加 "),
             Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" to exit dialog"),
+            Span::raw(" 退出 "),
         ]);
         let title_input = TitleInput::new();
         let message = Message();
@@ -110,6 +112,7 @@ impl App<'static> {
             tip,
             edit_list_message_line,
             edit_hosts_message_line,
+            edit_title_message_line,
             mode: Mode::Normal,
             title_input,
             show_title_input: false,
@@ -131,6 +134,10 @@ impl App<'static> {
         while self.running {
             if self.mode == Mode::Normal {
                 self.tip.set_line(self.edit_list_message_line.clone());
+            } else if self.mode == Mode::EditingTitle {
+                self.tip.set_line(self.edit_title_message_line.clone());
+            } else if self.mode == Mode::EditingHosts {
+                self.tip.set_line(self.edit_hosts_message_line.clone());
             }
             terminal.draw(|frame| {
                 self.draw(frame);
