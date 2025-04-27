@@ -4,7 +4,7 @@ use crate::password_input::PasswordInput;
 use crate::tip::Tip;
 use crate::title_input::TitleInput;
 use crate::util::Result;
-use crate::{message::Message, observer::UpdateHostsContentSubject};
+use crate::{message::Message, observer::Subject};
 use crossterm::{
     event::{
         self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
@@ -24,7 +24,6 @@ use std::time::Instant;
 use std::{cell::RefCell, io, rc::Rc};
 
 const MOUSE_SCROLL_THROTTLE_INTERVAL: u128 = 100;
-
 
 #[derive(Debug, Default, PartialEq)]
 enum Mode {
@@ -52,6 +51,7 @@ pub struct App<'a> {
     show_password_input: bool,
     password_input: PasswordInput<'a>,
     instant: Instant,
+    cached_password: Option<String>,
 }
 
 fn title_input_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
@@ -102,9 +102,9 @@ impl App<'static> {
         ]);
         let title_input = TitleInput::new();
         let message = Message();
-        let subject = Rc::new(RefCell::new(UpdateHostsContentSubject::new()));
-        subject.borrow_mut().register(editor.clone());
-        hosts_list.inject_subject(subject.clone());
+        let hosts_list_subject = Rc::new(RefCell::new(Subject::new()));
+        hosts_list_subject.borrow_mut().register(editor.clone());
+        hosts_list.inject_subject(hosts_list_subject.clone());
         hosts_list.init();
         let password_input = PasswordInput::new();
         App {
@@ -124,6 +124,7 @@ impl App<'static> {
             show_password_input: false,
             password_input,
             instant: Instant::now(),
+            cached_password: None,
         }
     }
 
@@ -265,14 +266,32 @@ impl App<'static> {
             self.editor
                 .borrow_mut()
                 .handle_event(event, |quit, payload| match (quit, payload) {
-                    (true, None) => {
-                        self.mode = Mode::Normal;
-                        self.show_message = false
-                    }
-                    (false, None) => {
-                        self.show_message = true;
-                        self.message_text = String::from("保存成功");
-                    }
+                    (quit, None) => {
+                        if quit {
+                            self.mode = Mode::Normal;
+                            self.show_message = false
+                        } else {
+                            self.show_message = true;
+                            self.message_text = String::from("保存成功");
+                        }
+                        let res = self
+                            .hosts_list
+                            .toggle_on_off(self.cached_password.clone(), true);
+                        // TODO: 这段逻辑有多处，考虑下怎么抽出来
+                        // 直接抽成方法，会报错 closure requires unique access to `*self` but it is already borrowed
+                        match res {
+                            Ok(_) => {
+                                self.mode = Mode::Normal;
+                                self.show_password_input = false;
+                            }
+                            Err(e) => {
+                                if e.to_string() == String::from("no permission") {
+                                    self.mode = Mode::InputPassword;
+                                    self.show_password_input = true;
+                                }
+                            }
+                        }
+                    },
                     _ => {}
                 });
             return Ok(());
@@ -284,7 +303,8 @@ impl App<'static> {
                         self.show_password_input = false;
                     }
                     (true, password) => {
-                        let res = self.hosts_list.toggle_on_off(password);
+                        self.cached_password = password.clone();
+                        let res = self.hosts_list.toggle_on_off(password, false);
                         match res {
                             Ok(_) => {
                                 self.mode = Mode::Normal;
@@ -323,7 +343,9 @@ impl App<'static> {
                 self.hosts_list.toggle_next();
             }
             (_, KeyCode::Enter) => {
-                let res = self.hosts_list.toggle_on_off(None);
+                let res = self
+                    .hosts_list
+                    .toggle_on_off(self.cached_password.clone(), false);
                 match res {
                     Ok(_) => {
                         self.mode = Mode::Normal;

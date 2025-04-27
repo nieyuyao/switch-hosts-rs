@@ -1,10 +1,9 @@
-use crate::data::SUDO_PASSWORD;
 use crate::data::{
     add_item, delete_item, read_config, read_item_data, update_config_item, ConfigItem,
     ConfigItemType,
 };
 use crate::hosts::{write_sys_hosts, write_sys_hosts_with_sudo};
-use crate::observer::UpdateHostsContentSubject;
+use crate::observer::Subject;
 use crate::util::Result;
 use crate::util::{find_config_by_id, find_mut_config_by_id, find_selected_index};
 use ratatui::{
@@ -21,7 +20,7 @@ pub struct HostsList {
     state: ListState,
     enabled_ids: Vec<String>,
     selected: Option<String>,
-    subject: Option<Rc<RefCell<UpdateHostsContentSubject>>>,
+    event_subject: Option<Rc<RefCell<Subject>>>,
 }
 
 impl HostsList {
@@ -31,7 +30,7 @@ impl HostsList {
             enabled_ids: Vec::<String>::new(),
             selected: None,
             state: ListState::default(),
-            subject: None,
+            event_subject: None,
         }
     }
 
@@ -50,7 +49,7 @@ impl HostsList {
             self.item_list.append(&mut config_item_list);
         }
         self.selected = Some(self.item_list[0].id().to_owned());
-        self.dispatch_update_hosts_content_subject();
+        self.dispatch_subject();
     }
 
     pub fn add_item(&mut self, title: String, content: String) -> Result<()> {
@@ -93,13 +92,19 @@ impl HostsList {
         Ok(())
     }
 
-    pub fn toggle_on_off(&mut self, password: Option<String>) -> Result<()> {
-        let id = self.selected.clone().unwrap_or("".to_owned());
+    pub fn toggle_on_off(&mut self, password: Option<String>, only_update_content: bool) -> Result<()> {
+        let id: String = self.selected.clone().unwrap_or("".to_owned());
         let config = find_config_by_id(&self.item_list, &id)
             .ok_or(color_eyre::eyre::Error::msg("not found config"))?;
-        let config_title = config.title().to_owned();
-        let on = !config.is_on();
-        let hosts_content = self.generate_hosts_content(&id, on)?;
+        let on = config.is_on();
+        if only_update_content && !on {
+            return Ok(());
+        }
+        let hosts_content = if !only_update_content {
+            self.generate_hosts_content(&id, !on)?
+        } else {
+            self.generate_hosts_content(&id, true)?
+        };
         if password.is_none() {
             if write_sys_hosts(hosts_content.clone()).is_err() {
                 return Err(color_eyre::eyre::Error::msg("no permission"));
@@ -110,13 +115,15 @@ impl HostsList {
         ).is_err() {
             return Err(color_eyre::eyre::Error::msg("no permission"));
         }
-        update_config_item(
-            id.clone(),
-            &ConfigItem::new(id.clone(), on, config_title, ConfigItemType::User),
-        )?;
-        let config = find_mut_config_by_id(&mut self.item_list, &id).unwrap();
-        config.on_off(on);
-        *SUDO_PASSWORD.lock().unwrap() = password.unwrap_or(String::new());
+        if !only_update_content {
+            let config_title = config.title().to_owned();
+            update_config_item(
+                id.clone(),
+                &ConfigItem::new(id.clone(), on, config_title, ConfigItemType::User),
+            )?;
+            let config = find_mut_config_by_id(&mut self.item_list, &id).unwrap();
+            config.on_off(on);
+        }
         Ok(())
     }
 
@@ -140,7 +147,7 @@ impl HostsList {
         {
             if idx >= 1 {
                 self.selected = Some(self.item_list[idx - 1].id().to_owned());
-                self.dispatch_update_hosts_content_subject();
+                self.dispatch_subject();
             }
         }
     }
@@ -156,7 +163,7 @@ impl HostsList {
         {
             if idx + 1 < self.item_list.len() {
                 self.selected = Some(self.item_list[idx + 1].id().to_owned());
-                self.dispatch_update_hosts_content_subject();
+                self.dispatch_subject();
             }
         }
     }
@@ -204,12 +211,12 @@ impl HostsList {
         Ok(hosts_content)
     }
 
-    pub fn inject_subject(&mut self, subject: Rc<RefCell<UpdateHostsContentSubject>>) {
-        self.subject.get_or_insert(subject);
+    pub fn inject_subject(&mut self, subject: Rc<RefCell<Subject>>) {
+        self.event_subject.get_or_insert(subject);
     }
 
-    pub fn dispatch_update_hosts_content_subject(&self) {
-        if let Some(s) = self.subject.clone() {
+    pub fn dispatch_subject(&self) {
+        if let Some(s) = self.event_subject.clone() {
             s.borrow()
                 .notify(self.selected.clone().unwrap_or("".to_owned()).as_str());
         }

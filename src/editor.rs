@@ -43,7 +43,6 @@ impl Editor<'_> {
     }
 
     pub fn save_item_content(&self, content: String) -> Result<()> {
-        // FIXME: 需要同步更新sys hosts
         write_item_data(&self.id, content)?;
         Ok(())
     }

@@ -1,11 +1,11 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 
-pub struct UpdateHostsContentSubject {
+pub struct Subject {
     observers: Vec<Rc<RefCell<dyn Observer>>>,
 }
  
-impl UpdateHostsContentSubject {
+impl Subject {
     pub fn new() -> Self {
         Self { observers: Vec::new() }
     }
@@ -35,7 +35,7 @@ mod tests {
 
     #[test]
     pub fn test_pub_sub() {
-        let mut subject = UpdateHostsContentSubject::new();
+        let mut subject = Subject::new();
         let a = Rc::new(RefCell::new(Editor::new()));
         subject.register(a);
         subject.notify("Button  clicked");

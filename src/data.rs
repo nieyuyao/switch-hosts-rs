@@ -5,12 +5,10 @@ use ratatui::{
 };
 use serde::Serialize;
 use serde_json::{Number, Value};
-use std::{env, fs, path::PathBuf, sync::Mutex, vec::Vec};
+use std::{env, fs, path::PathBuf, vec::Vec};
 
 use crate::util::find_mut_config_by_id;
 use crate::util::Result;
-
-pub static SUDO_PASSWORD: Mutex<String> = Mutex::new(String::new());
 
 const SWITCH_HOSTS_RS_DIR: &str = ".SwitchHostsRs";
 
