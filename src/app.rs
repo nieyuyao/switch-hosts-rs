@@ -79,20 +79,10 @@ impl App<'static> {
             Span::raw(" 删除hosts "),
             Span::styled("Ctrl+C", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" 退出 "),
-            Span::styled("Tab", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 编辑hosts "),
-            Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 启用/禁用hosts "),
         ]);
         let edit_hosts_message_line = Line::from(vec![
             Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" 退出编辑模式 "),
-            Span::styled("Shit+←/→", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 移动光标至行首/行尾 "),
-            Span::styled("Shit+o/g", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 移动光标至顶部/底部 "),
-            Span::styled("Ctrl+Z", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 撤销编辑 "),
         ]);
         let edit_title_message_line = Line::from(vec![
             Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
@@ -232,6 +222,57 @@ impl App<'static> {
         Ok(())
     }
 
+    fn update_show_password_input(&mut self, res: Result<()>) {
+        match res {
+            Ok(_) => {
+                self.mode = Mode::Normal;
+                self.show_password_input = false;
+            }
+            Err(e) => {
+                if e.to_string() == String::from("no permission") {
+                    self.mode = Mode::InputPassword;
+                    self.show_password_input = true;
+                }
+            }
+        }
+    }
+
+    fn handle_event(&mut self, event: KeyEvent) -> Result<()> {
+        match (event.modifiers, event.code) {
+            (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
+            (KeyModifiers::SHIFT, KeyCode::Char('n') | KeyCode::Char('N')) => {
+                if self.mode == Mode::Normal {
+                    self.show_title_input = true;
+                    self.mode = Mode::EditingTitle;
+                }
+            }
+            (KeyModifiers::SHIFT, KeyCode::Char('d') | KeyCode::Char('D')) => {
+                let _ = self.hosts_list.delete_current_item();
+            }
+            (_, KeyCode::Up) => {
+                self.hosts_list.toggle_previous();
+            }
+            (_, KeyCode::Down) => {
+                self.hosts_list.toggle_next();
+            }
+            (_, KeyCode::Enter) => {
+                let res = self
+                    .hosts_list
+                    .toggle_on_off(self.cached_password.clone(), false);
+                self.update_show_password_input(res);
+            }
+            (_, KeyCode::Tab) => {
+                if let Some(id) = self.hosts_list.get_selected_id() {
+                    self.mode = Mode::EditingHosts;
+                    self.editor.borrow_mut().set_id(id.to_owned());
+                    self.editor.borrow_mut().activate();
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     fn on_key_event(&mut self, event: KeyEvent) -> Result<()> {
         if self.mode == Mode::EditingTitle {
             self.title_input.handle_event(event, |res| {
@@ -263,112 +304,43 @@ impl App<'static> {
             });
             return Ok(());
         } else if self.mode == Mode::EditingHosts {
-            self.editor
-                .borrow_mut()
-                .handle_event(event, |quit, payload| match (quit, payload) {
-                    (quit, None) => {
-                        if quit {
-                            self.mode = Mode::Normal;
-                            self.show_message = false
-                        } else {
-                            self.show_message = true;
-                            self.message_text = String::from("保存成功");
-                        }
-                        let res = self
-                            .hosts_list
-                            .toggle_on_off(self.cached_password.clone(), true);
-                        // TODO: 这段逻辑有多处，考虑下怎么抽出来
-                        // 直接抽成方法，会报错 closure requires unique access to `*self` but it is already borrowed
-                        match res {
-                            Ok(_) => {
-                                self.mode = Mode::Normal;
-                                self.show_password_input = false;
-                            }
-                            Err(e) => {
-                                if e.to_string() == String::from("no permission") {
-                                    self.mode = Mode::InputPassword;
-                                    self.show_password_input = true;
-                                }
-                            }
-                        }
-                    },
-                    _ => {}
-                });
-            return Ok(());
+            let res = self.editor.borrow_mut().handle_event(event);
+
+            match res {
+                None => {
+                    return Ok(());
+                }
+                Some(quit) => {
+                    if quit {
+                        self.mode = Mode::Normal;
+                        self.show_message = false
+                    } else {
+                        self.show_message = true;
+                        self.message_text = String::from("保存成功");
+                    }
+                    let toggled_res = self
+                        .hosts_list
+                        .toggle_on_off(self.cached_password.clone(), true);
+                    self.update_show_password_input(toggled_res);
+                }
+            };
         } else if self.mode == Mode::InputPassword {
-            self.password_input
-                .handle_event(event, |quit, payload| match (quit, payload) {
-                    (true, None) => {
-                        self.mode = Mode::Normal;
-                        self.show_password_input = false;
-                    }
-                    (true, password) => {
-                        self.cached_password = password.clone();
-                        let res = self.hosts_list.toggle_on_off(password, false);
-                        match res {
-                            Ok(_) => {
-                                self.mode = Mode::Normal;
-                                self.show_password_input = false;
-                            }
-                            Err(e) => {
-                                if e.to_string() == String::from("no permission") {
-                                    self.mode = Mode::InputPassword;
-                                    self.show_password_input = true;
-                                }
-                            }
-                        }
-                    }
-                    _ => {
-                        self.mode = Mode::Normal;
-                        self.show_password_input = false;
-                    }
-                });
+            let res = self.password_input.handle_event(event);
+            match res {
+                (true, None) => {
+                    self.mode = Mode::Normal;
+                    self.show_password_input = false;
+                }
+                (true, password) => {
+                    self.cached_password = password.clone();
+                    let res = self.hosts_list.toggle_on_off(password, false);
+                    self.update_show_password_input(res);
+                }
+                _ => {}
+            };
             return Ok(());
         }
-        match (event.modifiers, event.code) {
-            (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
-            (KeyModifiers::SHIFT, KeyCode::Char('n') | KeyCode::Char('N')) => {
-                if self.mode == Mode::Normal {
-                    self.show_title_input = true;
-                    self.mode = Mode::EditingTitle;
-                }
-            }
-            (KeyModifiers::SHIFT, KeyCode::Char('d') | KeyCode::Char('D')) => {
-                let _ = self.hosts_list.delete_current_item();
-            }
-            (_, KeyCode::Up) => {
-                self.hosts_list.toggle_previous();
-            }
-            (_, KeyCode::Down) => {
-                self.hosts_list.toggle_next();
-            }
-            (_, KeyCode::Enter) => {
-                let res = self
-                    .hosts_list
-                    .toggle_on_off(self.cached_password.clone(), false);
-                match res {
-                    Ok(_) => {
-                        self.mode = Mode::Normal;
-                        self.show_password_input = false;
-                    }
-                    Err(e) => {
-                        if e.to_string() == String::from("no permission") {
-                            self.mode = Mode::InputPassword;
-                            self.show_password_input = true;
-                        }
-                    }
-                }
-            }
-            (_, KeyCode::Tab) => {
-                if let Some(id) = self.hosts_list.get_selected_id() {
-                    self.mode = Mode::EditingHosts;
-                    self.editor.borrow_mut().set_id(id.to_owned());
-                    self.editor.borrow_mut().activate();
-                }
-            }
-            _ => {}
-        }
-        Ok(())
+        return self.handle_event(event);
     }
 
     fn quit(&mut self) {

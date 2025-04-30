@@ -19,6 +19,7 @@ pub enum SinglelineTextareaType {
 pub struct SingleLineTextarea<'a> {
     textarea: TextArea<'a>,
     title: String,
+    error_title: String,
     r#type: SinglelineTextareaType,
 }
 
@@ -31,6 +32,7 @@ impl<'a> SingleLineTextarea<'a> {
         let t = SingleLineTextarea {
             textarea,
             title,
+            error_title: String::new(),
             r#type,
         };
         t
@@ -46,12 +48,25 @@ impl<'a> SingleLineTextarea<'a> {
         self.textarea.input(event);
     }
 
+    pub fn set_error(&mut self, error_title: impl Into<String>) {
+        self.error_title = error_title.into();
+    }
+
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .bg(Color::Blue)
-            .fg(Color::White)
-            .title(self.title.clone());
+        let block =  if self.error_title.is_empty() {
+            Block::default()
+                .borders(Borders::ALL)
+                .fg(Color::White)
+                .bg(Color::Black)
+                .title(self.title.clone())
+        } else {
+            Block::default()
+                .borders(Borders::ALL)
+                .fg(Color::White)
+                .bg(Color::Black)
+                .border_style(Color::Red)
+                .title(self.error_title.clone())
+        };
         self.textarea.set_block(block);
         self.textarea.render(area, buf);
     }

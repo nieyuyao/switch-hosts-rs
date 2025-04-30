@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{buffer::Buffer, layout::Rect};
-use crate::single_line_textarea::{SingleLineTextarea, SinglelineTextareaType};
+use crate::{hosts::check_password_correct, single_line_textarea::{SingleLineTextarea, SinglelineTextareaType}};
 
 fn create_new_textarea<'a>() -> SingleLineTextarea<'a> {
     SingleLineTextarea::new(
@@ -22,23 +22,30 @@ impl<'a> PasswordInput<'a> {
         }
     }
 
-    pub fn handle_event<F: FnMut(bool, Option<String>)>(
+    pub fn handle_event(
         &mut self,
         event: KeyEvent,
-        mut callback: F,
-    ) -> () {
+    ) -> (bool, Option<String>) {
         match event.code {
             KeyCode::Esc => {
-                callback(true, None);
-                self.textarea = create_new_textarea()
+                self.textarea = create_new_textarea();
+                return (true, None);
             }
             KeyCode::Enter => {
                 let text: String = self.textarea.get_text();
-                callback(true, Some(String::from(text)));
-                self.textarea = create_new_textarea();
+                let is_correct = check_password_correct(text.clone(), || {});
+                if is_correct.is_ok() {
+                    self.textarea = create_new_textarea();
+                    return (true, Some(String::from(text)));
+                } else {
+                    self.textarea.set_error("密码错误，请重新输入");
+                    return (false, None);
+                }
             }
             _ => {
+                self.textarea.set_error("");
                 self.textarea.input(event);
+                return (false, None);
             }
         }
     }

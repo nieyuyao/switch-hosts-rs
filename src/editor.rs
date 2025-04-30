@@ -78,39 +78,44 @@ impl Editor<'_> {
     pub fn handle_event(
         &mut self,
         event: KeyEvent,
-        mut callback: impl FnMut(bool, Option<String>) -> (),
-    ) -> () {
+    ) -> Option<bool> {
         let is_system = self.id == String::from("system");
         match (event.modifiers, event.code) {
             (_, KeyCode::Esc) => {
                 self.inactivate();
                 self.save_item_content(self.get_text());
-                callback(true, None);
+                Some(true)
             }
             (KeyModifiers::CONTROL, KeyCode::Char('s') | KeyCode::Char('S')) => {
                 if is_system {
-                    return;
+                    return None
                 }
                 self.save_item_content(self.get_text());
-                callback(false, None);
+
+                Some(false)
             }
             (KeyModifiers::CONTROL, KeyCode::Char('z') | KeyCode::Char('Z')) => {
                 if is_system {
-                    return;
+                    return None;
                 }
                 self.textarea.undo();
+                None
             }
             (KeyModifiers::SHIFT, KeyCode::Left) => {
                 self.textarea.move_cursor(CursorMove::Head);
+                None
             }
             (KeyModifiers::SHIFT, KeyCode::Right) => {
                 self.textarea.move_cursor(CursorMove::End);
+                None
             }
             (KeyModifiers::SHIFT, KeyCode::Char('o') | KeyCode::Char('O')) => {
                 self.textarea.move_cursor(CursorMove::Top);
+                None
             }
             (KeyModifiers::SHIFT, KeyCode::Char('g') | KeyCode::Char('G')) => {
                 self.textarea.move_cursor(CursorMove::Bottom);
+                None
             }
             other => {
                 if is_system
@@ -119,9 +124,10 @@ impl Editor<'_> {
                     && other.1 != KeyCode::Left
                     && other.1 != KeyCode::Right
                 {
-                    return;
+                    return None;
                 }
                 self.textarea.input(event);
+                None
             }
         }
     }

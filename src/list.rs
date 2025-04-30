@@ -168,6 +168,22 @@ impl HostsList {
         }
     }
 
+    pub fn move_to_previous(&mut self) {
+        // TODO:
+    }
+
+    pub fn move_to_next(&mut self) {
+        // TODO:
+    }
+
+    pub fn move_to_top(&mut self) {
+        // TODO:
+    }
+
+    pub fn move_to_bottom(&mut self) {
+        // TODO:
+    }
+
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
         let block = Block::new();
         block.render(area, buf);
