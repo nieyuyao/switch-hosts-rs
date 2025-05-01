@@ -1,6 +1,6 @@
 use crate::data::{
-    add_item, delete_item, read_config, read_item_data, update_config_item, ConfigItem,
-    ConfigItemType,
+    add_item, delete_item, deserialize_and_write_config, read_config, read_item_data,
+    update_config_item, ConfigItem, ConfigItemType,
 };
 use crate::hosts::{write_sys_hosts, write_sys_hosts_with_sudo};
 use crate::observer::Subject;
@@ -92,7 +92,11 @@ impl HostsList {
         Ok(())
     }
 
-    pub fn toggle_on_off(&mut self, password: Option<String>, only_update_content: bool) -> Result<()> {
+    pub fn toggle_on_off(
+        &mut self,
+        password: Option<String>,
+        only_update_content: bool,
+    ) -> Result<()> {
         let id: String = self.selected.clone().unwrap_or("".to_owned());
         let config = find_config_by_id(&self.item_list, &id)
             .ok_or(color_eyre::eyre::Error::msg("not found config"))?;
@@ -112,7 +116,9 @@ impl HostsList {
         } else if write_sys_hosts_with_sudo(
             password.clone().unwrap_or("".to_owned()),
             hosts_content,
-        ).is_err() {
+        )
+        .is_err()
+        {
             return Err(color_eyre::eyre::Error::msg("no permission"));
         }
         if !only_update_content {
@@ -168,20 +174,76 @@ impl HostsList {
         }
     }
 
+    pub fn sync_config(&self) {
+        let new_config = self
+            .item_list
+            .iter()
+            .filter(|i| i.id() != "system")
+            .map(|i| {
+                i.clone()
+            })
+            .collect::<Vec<_>>();
+        deserialize_and_write_config(&new_config);
+    }
+
     pub fn move_to_previous(&mut self) {
-        // TODO:
+        let idx = find_selected_index(
+            &self.item_list,
+            &self.selected.clone().unwrap_or("".to_owned()),
+        )
+        .unwrap_or(0);
+        if idx == 0 || idx == 1 {
+            return;
+        }
+        let item = (*self.item_list.get(idx).unwrap()).clone();
+        self.item_list.remove(idx);
+        self.item_list.insert(idx - 1, item);
+        self.sync_config();
     }
 
     pub fn move_to_next(&mut self) {
-        // TODO:
+        let idx = find_selected_index(
+            &self.item_list,
+            &self.selected.clone().unwrap_or("".to_owned()),
+        )
+        .unwrap_or(0);
+        if idx == 0 || idx == self.item_list.len() - 1 {
+            return;
+        }
+        let item = (*self.item_list.get(idx).unwrap()).clone();
+        self.item_list.remove(idx);
+        self.item_list.insert(idx + 1, item);
+        self.sync_config();
     }
 
     pub fn move_to_top(&mut self) {
-        // TODO:
+        let idx = find_selected_index(
+            &self.item_list,
+            &self.selected.clone().unwrap_or("".to_owned()),
+        )
+        .unwrap_or(0);
+        if idx == 0 {
+            return;
+        }
+        let item = (*self.item_list.get(idx).unwrap()).clone();
+        self.item_list.remove(idx);
+        self.item_list.insert(1, item);
+        self.sync_config();
     }
 
     pub fn move_to_bottom(&mut self) {
-        // TODO:
+        let idx = find_selected_index(
+            &self.item_list,
+            &self.selected.clone().unwrap_or("".to_owned()),
+        )
+        .unwrap_or(0);
+        if idx == 0 {
+            return;
+        }
+        let item = (*self.item_list.get(idx).unwrap()).clone();
+        self.item_list.remove(idx);
+        self.item_list.insert(self.item_list.len(), item);
+        self.sync_config();
     }
 
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {

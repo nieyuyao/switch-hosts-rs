@@ -247,7 +247,19 @@ impl App<'static> {
                 }
             }
             (KeyModifiers::SHIFT, KeyCode::Char('d') | KeyCode::Char('D')) => {
-                let _ = self.hosts_list.delete_current_item();
+                self.hosts_list.delete_current_item();
+            }
+            (KeyModifiers::SHIFT, KeyCode::Char('t') | KeyCode::Char('T')) => {
+                self.hosts_list.move_to_top();
+            }
+            (KeyModifiers::SHIFT, KeyCode::Char('b') | KeyCode::Char('B'))  => {
+                 self.hosts_list.move_to_bottom();
+             }
+            (KeyModifiers::SHIFT, KeyCode::Up) => {
+               self.hosts_list.move_to_previous();
+            }
+            (KeyModifiers::SHIFT, KeyCode::Down) => {
+                self.hosts_list.move_to_next();
             }
             (_, KeyCode::Up) => {
                 self.hosts_list.toggle_previous();
