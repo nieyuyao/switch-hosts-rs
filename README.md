@@ -14,9 +14,11 @@ This project is licensed under the MIT license ([LICENSE] or <http://opensource.
 [LICENSE]: ./LICENSE
 
 
+## Screenshot
+
+<img width="600" src="./screenshots/screenshot-1.png" />
+
+
 ## 快捷键
 
-^n 新建一个Hosts
-^d 删除一个Hosts
-^C 退出应用
-Enter 启用/取消
+[TODO]
