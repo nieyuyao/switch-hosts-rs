@@ -92,6 +92,18 @@ impl HostsList {
         Ok(())
     }
 
+    pub fn update_item_title(&mut self, new_title: String) -> Result<()> {
+        let id: String = self.selected.clone().unwrap_or("".to_owned());
+        let config = find_mut_config_by_id(&mut self.item_list, &id)
+            .ok_or(color_eyre::eyre::Error::msg("not found config"))?;
+        update_config_item(
+            config.id().clone(),
+            &ConfigItem::new(id, config.is_on(), new_title.clone(), ConfigItemType::User),
+        )?;
+        config.set_title(new_title);
+        Ok(())
+    }
+
     pub fn toggle_on_off(
         &mut self,
         password: Option<String>,
@@ -128,7 +140,7 @@ impl HostsList {
                 &ConfigItem::new(id.clone(), on, config_title, ConfigItemType::User),
             )?;
             let config = find_mut_config_by_id(&mut self.item_list, &id).unwrap();
-            config.on_off(on);
+            config.set_is_on(on);
         }
         Ok(())
     }

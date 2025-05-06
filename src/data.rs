@@ -55,12 +55,16 @@ impl ConfigItem {
         return &self.id;
     }
 
-    pub fn on_off(&mut self, is_on: bool) {
+    pub fn set_is_on(&mut self, is_on: bool) {
         self.on = is_on;
     }
 
     pub fn title(&self) -> &String {
         &self.title
+    }
+
+    pub fn set_title(&mut self, title: String) {
+        self.title = title;
     }
 
     pub fn item_type(&self) -> &ConfigItemType {

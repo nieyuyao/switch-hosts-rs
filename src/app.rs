@@ -2,7 +2,7 @@ use crate::editor::Editor;
 use crate::list::HostsList;
 use crate::password_input::PasswordInput;
 use crate::tip::Tip;
-use crate::title_input::TitleInput;
+use crate::hosts_title_input::TitleInput;
 use crate::util::Result;
 use crate::{message::Message, observer::Subject};
 use crossterm::{
@@ -43,8 +43,8 @@ pub struct App<'a> {
     edit_hosts_message_line: Line<'a>,
     edit_title_message_line: Line<'a>,
     mode: Mode,
-    title_input: TitleInput<'a>,
-    show_title_input: bool,
+    hosts_title_input: TitleInput<'a>,
+    hosts_hosts_title_input: bool,
     message: Message,
     show_message: bool,
     message_text: String,
@@ -90,7 +90,7 @@ impl App<'static> {
             Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" 退出 "),
         ]);
-        let title_input = TitleInput::new();
+        let hosts_title_input = TitleInput::new();
         let message = Message();
         let hosts_list_subject = Rc::new(RefCell::new(Subject::new()));
         hosts_list_subject.borrow_mut().register(editor.clone());
@@ -106,8 +106,8 @@ impl App<'static> {
             edit_hosts_message_line,
             edit_title_message_line,
             mode: Mode::Normal,
-            title_input,
-            show_title_input: false,
+            hosts_title_input,
+            hosts_hosts_title_input: false,
             message,
             show_message: false,
             message_text: String::from(""),
@@ -158,7 +158,7 @@ impl App<'static> {
         self.hosts_list.draw(left, buf);
         self.editor.borrow_mut().draw(right, buf);
         self.tip.draw(tip_area, buf);
-        if self.show_title_input {
+        if self.hosts_hosts_title_input {
             self.draw_title_input(frame_area, frame);
         }
         if self.show_message {
@@ -174,7 +174,7 @@ impl App<'static> {
         let area = title_input_area(frame_area, 60, 20);
         frame.render_widget(Clear, area);
         let buf = frame.buffer_mut();
-        self.title_input.draw(area, buf);
+        self.hosts_title_input.draw(area, buf);
     }
 
     fn draw_message(&mut self, frame_area: Rect, frame: &mut Frame) {
@@ -242,7 +242,7 @@ impl App<'static> {
             (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
             (KeyModifiers::SHIFT, KeyCode::Char('n') | KeyCode::Char('N')) => {
                 if self.mode == Mode::Normal {
-                    self.show_title_input = true;
+                    self.hosts_hosts_title_input = true;
                     self.mode = Mode::EditingTitle;
                 }
             }
@@ -254,12 +254,23 @@ impl App<'static> {
             }
             (KeyModifiers::SHIFT, KeyCode::Char('b') | KeyCode::Char('B'))  => {
                  self.hosts_list.move_to_bottom();
-             }
+            }
             (KeyModifiers::SHIFT, KeyCode::Up) => {
                self.hosts_list.move_to_previous();
             }
             (KeyModifiers::SHIFT, KeyCode::Down) => {
                 self.hosts_list.move_to_next();
+            }
+            (KeyModifiers::SHIFT, KeyCode::Char('m') | KeyCode::Char('M')) => {
+                if self.mode == Mode::Normal {
+                    let selected = self.hosts_list.get_selected_item().unwrap();
+                    if selected.id() != "system" {
+                        self.hosts_title_input.set_text(selected.title().clone(), false);
+                        self.hosts_hosts_title_input = true;
+                        self.mode = Mode::EditingTitle;
+                    }
+                 
+                }
             }
             (_, KeyCode::Up) => {
                 self.hosts_list.toggle_previous();
@@ -287,28 +298,27 @@ impl App<'static> {
 
     fn on_key_event(&mut self, event: KeyEvent) -> Result<()> {
         if self.mode == Mode::EditingTitle {
-            self.title_input.handle_event(event, |res| {
+            self.hosts_title_input.handle_event(event, |res| {
                 match res {
-                    (true, None) => {
-                        // 关闭
+                    (true, None, _) => {
                         self.mode = Mode::Normal;
                         self.show_message = false;
-                        self.show_title_input = false;
+                        self.hosts_hosts_title_input = false;
                     }
-                    (true, Some(title)) => {
+                    (true, Some(title), is_new) => {
                         self.mode = Mode::Normal;
                         self.show_message = false;
-                        self.show_title_input = false;
-                        self.hosts_list
-                            .add_item(title, "".to_owned())
-                            .unwrap_or_else(|e| {
-                                e.to_string();
-                            })
+                        self.hosts_hosts_title_input = false;
+                        if is_new {
+                            self.hosts_list.add_item(title, "".to_owned());
+                        } else {
+                            self.hosts_list.update_item_title(title);
+                        }
                     }
-                    (false, None) => {
+                    (false, None, _) => {
                         self.show_message = false;
                     }
-                    (false, Some(msg)) => {
+                    (false, Some(msg), _) => {
                         self.show_message = true;
                         self.message_text = msg;
                     }

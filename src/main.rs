@@ -16,7 +16,7 @@ pub mod data;
 
 pub mod tip;
 
-pub mod title_input;
+pub mod hosts_title_input;
 
 pub mod message;
 
