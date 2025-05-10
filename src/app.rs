@@ -15,8 +15,6 @@ use crossterm::{
 use ratatui::{
     layout::{Constraint, Flex, Layout},
     prelude::Rect,
-    style::{Modifier, Style},
-    text::{Line, Span},
     widgets::Clear,
     DefaultTerminal, Frame,
 };
@@ -39,9 +37,6 @@ pub struct App<'a> {
     hosts_list: HostsList,
     editor: Rc<RefCell<Editor<'a>>>,
     tip: Tip<'a>,
-    edit_list_message_line: Line<'a>,
-    edit_hosts_message_line: Line<'a>,
-    edit_title_message_line: Line<'a>,
     mode: Mode,
     hosts_title_input: TitleInput<'a>,
     hosts_hosts_title_input: bool,
@@ -72,24 +67,7 @@ impl App<'static> {
         let mut hosts_list = HostsList::new();
         let editor = Rc::new(RefCell::new(Editor::new()));
         let tip = Tip::new();
-        let edit_list_message_line = Line::from(vec![
-            Span::styled("Ctrl+N", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 添加hosts "),
-            Span::styled("Ctrl+D", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 删除hosts "),
-            Span::styled("Ctrl+C", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 退出 "),
-        ]);
-        let edit_hosts_message_line = Line::from(vec![
-            Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 退出编辑模式 "),
-        ]);
-        let edit_title_message_line = Line::from(vec![
-            Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 确定添加 "),
-            Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 退出 "),
-        ]);
+        
         let hosts_title_input = TitleInput::new();
         let message = Message();
         let hosts_list_subject = Rc::new(RefCell::new(Subject::new()));
@@ -102,9 +80,6 @@ impl App<'static> {
             hosts_list,
             editor,
             tip,
-            edit_list_message_line,
-            edit_hosts_message_line,
-            edit_title_message_line,
             mode: Mode::Normal,
             hosts_title_input,
             hosts_hosts_title_input: false,
@@ -125,12 +100,13 @@ impl App<'static> {
         crossterm::execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
         self.running = true;
         while self.running {
+            // TODO: 避免每次clone
             if self.mode == Mode::Normal {
-                self.tip.set_line(self.edit_list_message_line.clone());
+                self.tip.show_line(0);
             } else if self.mode == Mode::EditingTitle {
-                self.tip.set_line(self.edit_title_message_line.clone());
+                self.tip.show_line(1);
             } else if self.mode == Mode::EditingHosts {
-                self.tip.set_line(self.edit_hosts_message_line.clone());
+                self.tip.show_line(2);
             }
             terminal.draw(|frame| {
                 self.draw(frame);
