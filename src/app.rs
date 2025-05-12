@@ -100,7 +100,6 @@ impl App<'static> {
         crossterm::execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
         self.running = true;
         while self.running {
-            // TODO: 避免每次clone
             if self.mode == Mode::Normal {
                 self.tip.show_line(0);
             } else if self.mode == Mode::EditingTitle {

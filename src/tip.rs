@@ -1,15 +1,15 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    text::{Line, Span},
     style::{Modifier, Style},
-    widgets::Widget,
+    text::{Line, Span},
+    widgets::WidgetRef,
 };
 
 #[derive(Debug, Default)]
 pub struct Tip<'a> {
     which: usize,
-    lines: [Line<'a>; 3]
+    lines: [Line<'a>; 3],
 }
 impl<'a> Tip<'a> {
     pub fn new() -> Self {
@@ -33,8 +33,12 @@ impl<'a> Tip<'a> {
         ]);
         return Tip {
             which: 0,
-            lines: [edit_list_message_line, edit_hosts_message_line, edit_title_message_line]
-        }
+            lines: [
+                edit_list_message_line,
+                edit_hosts_message_line,
+                edit_title_message_line,
+            ],
+        };
     }
 
     pub fn show_line(&mut self, idx: usize) {
@@ -42,6 +46,6 @@ impl<'a> Tip<'a> {
     }
 
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
-        self.lines[self.which].clone().render(area, buf);
+        self.lines[self.which].render_ref(area, buf);
     }
 }
