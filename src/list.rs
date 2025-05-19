@@ -110,6 +110,9 @@ impl HostsList {
         only_update_content: bool,
     ) -> Result<()> {
         let id: String = self.selected.clone().unwrap_or("".to_owned());
+        if id == "system" {
+            return  Ok(());
+        }
         let config = find_config_by_id(&self.item_list, &id)
             .ok_or(color_eyre::eyre::Error::msg("not found config"))?;
         let on = config.is_on();
@@ -137,11 +140,12 @@ impl HostsList {
             let config_title = config.title().to_owned();
             update_config_item(
                 id.clone(),
-                &ConfigItem::new(id.clone(), on, config_title, ConfigItemType::User),
+                &ConfigItem::new(id.clone(), !on, config_title, ConfigItemType::User),
             )?;
             let config = find_mut_config_by_id(&mut self.item_list, &id).unwrap();
-            config.set_is_on(on);
+            config.set_is_on(!on);
         }
+        
         Ok(())
     }
 
