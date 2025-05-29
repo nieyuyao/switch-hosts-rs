@@ -1,26 +1,24 @@
-use crate::single_line_textarea::{SingleLineTextarea, SinglelineTextareaType};
+use crate::single_line_textarea::{
+    create_new_single_line_textarea, SingleLineTextarea, SinglelineTextareaType,
+};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{buffer::Buffer, layout::Rect};
-
-fn create_new_textarea<'a>() -> SingleLineTextarea<'a> {
-    SingleLineTextarea::new(
-        "输入标题".to_owned(),
-        "Hosts标题".to_owned(),
-        SinglelineTextareaType::Text,
-    )
-}
 
 #[derive(Debug, Default)]
 pub struct TitleInput<'a> {
     textarea: SingleLineTextarea<'a>,
     title: String,
-    is_new: bool
+    is_new: bool,
 }
 
 impl<'a> TitleInput<'a> {
     pub fn new() -> Self {
         TitleInput {
-            textarea: create_new_textarea(),
+            textarea: create_new_single_line_textarea(
+                "输入标题",
+                "Hosts标题",
+                SinglelineTextareaType::Text,
+            ),
             title: String::new(),
             is_new: true,
         }
@@ -41,7 +39,7 @@ impl<'a> TitleInput<'a> {
             KeyCode::Esc => {
                 callback((true, None, self.is_new));
                 self.is_new = true;
-                self.textarea = create_new_textarea()
+                self.textarea.set_text("");
             }
             KeyCode::Enter => {
                 let text = self.textarea.get_text();
@@ -50,7 +48,7 @@ impl<'a> TitleInput<'a> {
                 } else {
                     callback((true, Some(String::from(text)), self.is_new));
                     self.is_new = true;
-                    self.textarea = create_new_textarea();
+                    self.textarea.set_text("");
                 }
             }
             _ => {

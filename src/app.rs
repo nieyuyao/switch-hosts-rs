@@ -4,7 +4,7 @@ use crate::password_input::PasswordInput;
 use crate::tip::Tip;
 use crate::hosts_title_input::TitleInput;
 use crate::util::Result;
-use crate::{message::Message, observer::Subject};
+use crate::{observer::Subject};
 use crossterm::{
     event::{
         self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
@@ -40,9 +40,6 @@ pub struct App<'a> {
     mode: Mode,
     hosts_title_input: TitleInput<'a>,
     hosts_hosts_title_input: bool,
-    message: Message,
-    show_message: bool,
-    message_text: String,
     show_password_input: bool,
     password_input: PasswordInput<'a>,
     instant: Instant,
@@ -56,12 +53,6 @@ fn title_input_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
     area
 }
 
-fn message_area(area: Rect) -> Rect {
-    let vertical = Layout::vertical([Constraint::Length(1)]).flex(Flex::End);
-    let [area] = vertical.areas(area);
-    area
-}
-
 impl App<'static> {
     pub fn new() -> Self {
         let mut hosts_list = HostsList::new();
@@ -69,7 +60,6 @@ impl App<'static> {
         let tip = Tip::new();
         
         let hosts_title_input = TitleInput::new();
-        let message = Message();
         let hosts_list_subject = Rc::new(RefCell::new(Subject::new()));
         hosts_list_subject.borrow_mut().register(editor.clone());
         hosts_list.inject_subject(hosts_list_subject.clone());
@@ -83,9 +73,6 @@ impl App<'static> {
             mode: Mode::Normal,
             hosts_title_input,
             hosts_hosts_title_input: false,
-            message,
-            show_message: false,
-            message_text: String::from(""),
             show_password_input: false,
             password_input,
             instant: Instant::now(),
@@ -136,9 +123,6 @@ impl App<'static> {
         if self.hosts_hosts_title_input {
             self.draw_title_input(frame_area, frame);
         }
-        if self.show_message {
-            self.draw_message(frame_area, frame);
-        }
         if self.show_password_input {
             self.draw_password_input(frame_area, frame);
         }
@@ -150,14 +134,6 @@ impl App<'static> {
         frame.render_widget(Clear, area);
         let buf = frame.buffer_mut();
         self.hosts_title_input.draw(area, buf);
-    }
-
-    fn draw_message(&mut self, frame_area: Rect, frame: &mut Frame) {
-        let buf = frame.buffer_mut();
-        let area = message_area(frame_area);
-        frame.render_widget(Clear, area);
-        let buf = frame.buffer_mut();
-        self.message.draw(self.message_text.clone(), area, buf);
     }
 
     fn draw_password_input(&mut self, frame_area: Rect, frame: &mut Frame) {
@@ -261,9 +237,11 @@ impl App<'static> {
             }
             (_, KeyCode::Tab) => {
                 if let Some(id) = self.hosts_list.get_selected_id() {
-                    self.mode = Mode::EditingHosts;
-                    self.editor.borrow_mut().set_id(id.to_owned());
-                    self.editor.borrow_mut().activate();
+                    if id != "system" {
+                        self.mode = Mode::EditingHosts;
+                        self.editor.borrow_mut().set_id(id.to_owned());
+                        self.editor.borrow_mut().activate();
+                    }
                 }
             }
             _ => {}
@@ -277,12 +255,10 @@ impl App<'static> {
                 match res {
                     (true, None, _) => {
                         self.mode = Mode::Normal;
-                        self.show_message = false;
                         self.hosts_hosts_title_input = false;
                     }
                     (true, Some(title), is_new) => {
                         self.mode = Mode::Normal;
-                        self.show_message = false;
                         self.hosts_hosts_title_input = false;
                         if is_new {
                             self.hosts_list.add_item(title, "".to_owned());
@@ -290,13 +266,7 @@ impl App<'static> {
                             self.hosts_list.update_item_title(title);
                         }
                     }
-                    (false, None, _) => {
-                        self.show_message = false;
-                    }
-                    (false, Some(msg), _) => {
-                        self.show_message = true;
-                        self.message_text = msg;
-                    }
+                    _ => {}
                 }
             });
             return Ok(());
@@ -308,17 +278,16 @@ impl App<'static> {
                     return Ok(());
                 }
                 Some(quit) => {
+                    let mut old_mode = Mode::EditingHosts;
                     if quit {
                         self.mode = Mode::Normal;
-                        self.show_message = false
-                    } else {
-                        self.show_message = true;
-                        self.message_text = String::from("保存成功");
+                        old_mode = Mode::Normal;
                     }
                     let toggled_res = self
                         .hosts_list
                         .toggle_on_off(self.cached_password.clone(), true);
                     self.update_show_password_input(toggled_res);
+                    self.mode = old_mode;
                 }
             };
         } else if self.mode == Mode::InputPassword {

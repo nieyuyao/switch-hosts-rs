@@ -19,3 +19,8 @@ This project is licensed under the MIT license ([LICENSE] or <http://opensource.
 ## 快捷键
 
 [TODO]
+
+
+## Run
+
+> cargo run

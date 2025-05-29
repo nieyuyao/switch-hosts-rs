@@ -6,7 +6,7 @@ use ratatui::{
     style::{Color, Stylize},
     widgets::{Block, Borders, Widget},
 };
-use tui_textarea::{TextArea, CursorMove};
+use tui_textarea::{CursorMove, TextArea};
 
 #[derive(Debug, Default, PartialEq)]
 pub enum SinglelineTextareaType {
@@ -44,8 +44,8 @@ impl<'a> SingleLineTextarea<'a> {
         text
     }
 
-    pub fn set_text(&mut self, text: String) {
-        let textarea = TextArea::from(text.split("\n"));
+    pub fn set_text(&mut self, text: impl Into<String>) {
+        let textarea = TextArea::from(text.into().split("\n"));
         self.textarea = textarea;
     }
 
@@ -62,7 +62,7 @@ impl<'a> SingleLineTextarea<'a> {
     }
 
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
-        let block =  if self.error_title.is_empty() {
+        let block = if self.error_title.is_empty() {
             Block::default()
                 .borders(Borders::ALL)
                 .fg(Color::White)
@@ -79,4 +79,16 @@ impl<'a> SingleLineTextarea<'a> {
         self.textarea.set_block(block);
         self.textarea.render(area, buf);
     }
+}
+
+pub fn create_new_single_line_textarea<'a>(
+    place_holder: impl Into<String>,
+    title: impl Into<String>,
+    r#type: SinglelineTextareaType
+) -> SingleLineTextarea<'a> {
+    SingleLineTextarea::new(
+        place_holder.into(),
+        title.into(),
+        r#type,
+    )
 }

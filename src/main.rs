@@ -18,7 +18,7 @@ pub mod tip;
 
 pub mod hosts_title_input;
 
-pub mod message;
+pub mod popup;
 
 pub mod util;
 
