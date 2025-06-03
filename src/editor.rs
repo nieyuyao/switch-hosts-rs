@@ -109,6 +109,10 @@ impl Editor<'_> {
                 self.textarea.move_cursor(CursorMove::End);
                 None
             }
+            (KeyModifiers::SHIFT,  KeyCode::Char('d') | KeyCode::Char('D')) => {
+                self.textarea.delete_line_by_head();
+                None
+            }
             (KeyModifiers::SHIFT, KeyCode::Char('o') | KeyCode::Char('O')) => {
                 self.textarea.move_cursor(CursorMove::Top);
                 None
