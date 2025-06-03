@@ -237,11 +237,9 @@ impl App<'static> {
             }
             (_, KeyCode::Tab) => {
                 if let Some(id) = self.hosts_list.get_selected_id() {
-                    if id != "system" {
-                        self.mode = Mode::EditingHosts;
-                        self.editor.borrow_mut().set_id(id.to_owned());
-                        self.editor.borrow_mut().activate();
-                    }
+                    self.mode = Mode::EditingHosts;
+                    self.editor.borrow_mut().set_id(id.to_owned());
+                    self.editor.borrow_mut().activate();
                 }
             }
             _ => {}
