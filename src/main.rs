@@ -28,8 +28,13 @@ pub mod single_line_textarea;
 
 pub mod observer;
 
+pub mod log;
+
+use log::init_logger;
+
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
+    init_logger();
     let terminal = ratatui::init();
     let result = App::new().run(terminal);
     ratatui::restore();

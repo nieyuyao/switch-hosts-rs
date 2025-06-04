@@ -10,14 +10,6 @@ fn get_sys_hosts_path() -> String {
     String::from("/etc/hosts")
 }
 
-fn check_access() -> bool {
-    let hosts_path = get_sys_hosts_path();
-    match fs::metadata(&hosts_path) {
-        Ok(meta) => meta.permissions().readonly(),
-        Err(_) => false,
-    }
-}
-
 pub fn write_sys_hosts(appended: impl Into<String> + AsRef<[u8]>) -> Result<()> {
     let hosts_path = get_sys_hosts_path();
     let hosts_content = generate_sys_hosts_content(appended.into());

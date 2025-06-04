@@ -1,3 +1,4 @@
+use log::error;
 use ratatui::{
     style::{Color, Modifier, Style},
     text::Line,
@@ -110,7 +111,10 @@ pub fn get_data_dir() -> Option<PathBuf> {
 pub fn check_switch_host_rs_dir_exist() -> Result<()> {
     let dir = get_switch_hosts_rs_dir().unwrap();
     if !fs::exists(&dir)? {
-        fs::create_dir(&dir)?;
+        fs::create_dir(&dir).or_else(|e| {
+            error!("{e}");
+            Err(e)
+        });
     }
     Ok(())
 }
@@ -118,7 +122,10 @@ pub fn check_switch_host_rs_dir_exist() -> Result<()> {
 pub fn check_data_dir_exist() -> Result<()> {
     let dir = get_data_dir().unwrap();
     if !fs::exists(&dir)? {
-        fs::create_dir(&dir)?;
+        fs::create_dir(&dir).or_else(|e| {
+            error!("{e}");
+            Err(e)
+        });
     }
     Ok(())
 }

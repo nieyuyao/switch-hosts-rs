@@ -12,6 +12,7 @@ use crossterm::{
     },
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use log::error;
 use ratatui::{
     layout::{Constraint, Flex, Layout},
     prelude::Rect,
@@ -183,6 +184,8 @@ impl App<'static> {
                 if e.to_string() == String::from("no permission") {
                     self.mode = Mode::InputPassword;
                     self.show_password_input = true;
+                } else {
+                    error!("{e}");
                 }
             }
         }
