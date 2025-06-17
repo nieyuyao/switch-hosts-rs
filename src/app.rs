@@ -1,6 +1,7 @@
 use crate::editor::Editor;
 use crate::list::HostsList;
 use crate::password_input::PasswordInput;
+use crate::popup::Popup;
 use crate::tip::Tip;
 use crate::hosts_title_input::TitleInput;
 use crate::util::Result;
@@ -19,10 +20,12 @@ use ratatui::{
     widgets::Clear,
     DefaultTerminal, Frame,
 };
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{cell::RefCell, io, rc::Rc};
 
 const MOUSE_SCROLL_THROTTLE_INTERVAL: u128 = 100;
+
+const POPUP_VISIBLE_INTERVAL: u128 = 600;
 
 #[derive(Debug, Default, PartialEq)]
 enum Mode {
@@ -44,7 +47,11 @@ pub struct App<'a> {
     show_password_input: bool,
     password_input: PasswordInput<'a>,
     instant: Instant,
+    popup_instant: Instant,
     cached_password: Option<String>,
+    popup: Popup,
+    show_popup: bool,
+    popup_text: String
 }
 
 fn title_input_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
@@ -54,12 +61,21 @@ fn title_input_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
     area
 }
 
+
+fn popup_area(area: Rect, length: u16) -> Rect {
+    let vertical = Layout::vertical([Constraint::Length(3)]).flex(Flex::Center);
+    let horizontal = Layout::horizontal([Constraint::Length(length)]).flex(Flex::Center);
+    let [area] = horizontal.areas(vertical.areas::<1>(area)[0]);
+    area
+}
+
+
 impl App<'static> {
     pub fn new() -> Self {
         let mut hosts_list = HostsList::new();
         let editor = Rc::new(RefCell::new(Editor::new()));
         let tip = Tip::new();
-        
+        let popup = Popup();
         let hosts_title_input = TitleInput::new();
         let hosts_list_subject = Rc::new(RefCell::new(Subject::new()));
         hosts_list_subject.borrow_mut().register(editor.clone());
@@ -77,7 +93,11 @@ impl App<'static> {
             show_password_input: false,
             password_input,
             instant: Instant::now(),
+            popup_instant: Instant::now(),
             cached_password: None,
+            popup,
+            show_popup: false,
+            popup_text: String::from(""),
         }
     }
 
@@ -94,6 +114,9 @@ impl App<'static> {
                 self.tip.show_line(1);
             } else if self.mode == Mode::EditingHosts {
                 self.tip.show_line(2);
+            }
+            if self.show_popup && self.popup_instant.elapsed().as_millis() > POPUP_VISIBLE_INTERVAL {
+                self.show_popup = false
             }
             terminal.draw(|frame| {
                 self.draw(frame);
@@ -127,6 +150,9 @@ impl App<'static> {
         if self.show_password_input {
             self.draw_password_input(frame_area, frame);
         }
+        if self.show_popup {
+            self.draw_popup(frame_area, frame);
+        }
     }
 
     fn draw_title_input(&mut self, frame_area: Rect, frame: &mut Frame) {
@@ -145,31 +171,42 @@ impl App<'static> {
         self.password_input.draw(area, buf);
     }
 
+
+    fn draw_popup(&mut self, frame_area: Rect, frame: &mut Frame) {
+        let buf = frame.buffer_mut();
+        let area = popup_area(frame_area,self.popup_text.len() as u16 + 4);
+        frame.render_widget(Clear, area);
+        let buf = frame.buffer_mut();
+        self.popup.draw(self.popup_text.clone(), area, buf);
+    }
+
     fn handle_crossterm_events(&mut self) -> Result<()> {
-        match event::read() {
-            Ok(Event::Key(event)) => {
-                self.on_key_event(event)?;
-            }
-            Ok(Event::Mouse(e)) => {
-                if self.instant.elapsed().as_millis() < MOUSE_SCROLL_THROTTLE_INTERVAL {
-                    return Ok(());
+        if event::poll(Duration::from_millis(20))? {
+            match event::read() {
+                Ok(Event::Key(event)) => {
+                    self.on_key_event(event)?;
                 }
-                self.instant = Instant::now();
-                if e.kind == MouseEventKind::ScrollUp {
-                    if self.mode == Mode::Normal {
-                        self.hosts_list.toggle_previous();
-                    } else if self.mode == Mode::EditingHosts {
-                        self.editor.borrow_mut().cursor_move_up();
+                Ok(Event::Mouse(e)) => {
+                    if self.instant.elapsed().as_millis() < MOUSE_SCROLL_THROTTLE_INTERVAL {
+                        return Ok(());
                     }
-                } else if e.kind == MouseEventKind::ScrollDown {
-                    if self.mode == Mode::Normal {
-                        self.hosts_list.toggle_next();
-                    } else if self.mode == Mode::EditingHosts {
-                        self.editor.borrow_mut().cursor_move_down();
+                    self.instant = Instant::now();
+                    if e.kind == MouseEventKind::ScrollUp {
+                        if self.mode == Mode::Normal {
+                            self.hosts_list.toggle_previous();
+                        } else if self.mode == Mode::EditingHosts {
+                            self.editor.borrow_mut().cursor_move_up();
+                        }
+                    } else if e.kind == MouseEventKind::ScrollDown {
+                        if self.mode == Mode::Normal {
+                            self.hosts_list.toggle_next();
+                        } else if self.mode == Mode::EditingHosts {
+                            self.editor.borrow_mut().cursor_move_down();
+                        }
                     }
                 }
+                _ => {}
             }
-            _ => {}
         }
         Ok(())
     }
@@ -182,6 +219,14 @@ impl App<'static> {
             }
             Err(e) => {
                 if e.to_string() == String::from("no permission") {
+                    if !self.show_popup {
+                        self.show_popup = true;
+                        self.popup_instant = Instant::now();
+                        self.popup_text = String::from("没有写入 Hosts 文件的权限");
+                    }
+                    if cfg!(target_os = "windows") {
+                        return;
+                    }
                     self.mode = Mode::InputPassword;
                     self.show_password_input = true;
                 } else {

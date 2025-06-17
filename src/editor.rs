@@ -101,11 +101,11 @@ impl Editor<'_> {
                 self.textarea.undo();
                 None
             }
-            (KeyModifiers::SHIFT, KeyCode::Left) => {
+            (KeyModifiers::ALT, KeyCode::Left) => {
                 self.textarea.move_cursor(CursorMove::Head);
                 None
             }
-            (KeyModifiers::SHIFT, KeyCode::Right) => {
+            (KeyModifiers::ALT, KeyCode::Right) => {
                 self.textarea.move_cursor(CursorMove::End);
                 None
             }
