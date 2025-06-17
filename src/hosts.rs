@@ -3,6 +3,9 @@ use std::{fmt::Display, fs, process::Command};
 #[cfg(not(target_os = "windows"))]
 use std::os::unix::fs::PermissionsExt;
 
+#[cfg(target_os = "windows")]
+use std::env;
+
 use crate::util::Result;
 
 const CONTENT_START: &str = "# --- SWITCHHOSTS_RS_CONTENT_START ---";
@@ -11,12 +14,13 @@ const CONTENT_END: &str = "# --- SWITCHHOSTS_RS_CONTENT_END ---";
 
 #[cfg(target_os = "windows")]
 fn get_sys_hosts_path() -> String {
-    use std::env;   
-    let windir = match env::var("windir") {
-        Ok(val) => val,
-        Err(_) => String::from(r"C:\WINDOWS\system32\drivers\etc\hosts")
-    };
-    return windir
+    let windir = env::var("windir").and_then(|mut dir| {
+        dir.push_str(r"\system32\drivers\etc\hosts");
+        Ok(dir)
+    }).unwrap_or_else(|_| {
+        String::from(r"C:\WINDOWS\system32\drivers\etc\hosts")
+    });
+    windir
 }
 
 #[cfg(not(target_os = "windows"))]

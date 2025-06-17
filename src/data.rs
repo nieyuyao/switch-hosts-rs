@@ -93,7 +93,7 @@ impl From<&ConfigItem> for ListItem<'_> {
 }
 
 pub fn get_home_dir() -> Option<PathBuf> {
-    env::var_os("HOME").map(Into::into)
+    env::home_dir()
 }
 
 pub fn get_switch_hosts_rs_dir() -> Option<PathBuf> {
