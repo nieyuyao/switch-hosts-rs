@@ -16,15 +16,28 @@ const TRIGGER_FILE_SIZE: u64 = 200 * 1024;
 
 const LOG_FILE_COUNT: u32 = 10;
 
-const ARCHIVE_PATTERN: &str = "/tmp/archive/switch-hosts-rs.{}.log";
-
 pub fn init_logger() -> Result<()> {
     let level = log::LevelFilter::Info;
     let trigger = SizeTrigger::new(TRIGGER_FILE_SIZE);
-    let roller = FixedWindowRoller::builder()
-        .base(0)
-        .build(ARCHIVE_PATTERN, LOG_FILE_COUNT)
-        .unwrap();
+    let roller = if cfg!(target_os = "windows") {
+        FixedWindowRoller::builder()
+            .base(0)
+            .build(
+                get_switch_hosts_rs_dir()
+                    .clone()
+                    .map(|buf| buf.join("archive/switch-hosts-rs.{}.log"))
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                LOG_FILE_COUNT,
+            )
+            .unwrap()
+    } else {
+        FixedWindowRoller::builder()
+            .base(0)
+            .build("/tmp/archive/switch-hosts-rs.{}.log", LOG_FILE_COUNT)
+            .unwrap()
+    };
     let policy = CompoundPolicy::new(Box::new(trigger), Box::new(roller));
     let log_file_path = get_switch_hosts_rs_dir()
         .map(|buf| buf.join("error.log"))
