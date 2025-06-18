@@ -152,7 +152,8 @@ impl Observer for Editor<'_> {
             }
         };
         res.and_then(|content| {
-            let textarea = TextArea::from(content.split("\n"));
+            // 过滤掉\r\n，windows上会导致editor布局错乱
+            let textarea: TextArea<'_> = TextArea::from(content.replace("\r\n", "\n").split("\n"));
             self.textarea = textarea;
             if self.activated {
                 self.activate();
