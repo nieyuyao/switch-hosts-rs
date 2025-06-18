@@ -111,7 +111,7 @@ impl HostsList {
     ) -> Result<()> {
         let id: String = self.selected.clone().unwrap_or("".to_owned());
         if id == "system" {
-            return  Ok(());
+            return Ok(());
         }
         let config = find_config_by_id(&self.item_list, &id)
             .ok_or(color_eyre::eyre::Error::msg("not found config"))?;
@@ -124,7 +124,7 @@ impl HostsList {
         } else {
             self.generate_hosts_content(&id, true)?
         };
-        if password.is_none() {
+        if password.is_none() || cfg!(target_os = "windows") {
             if write_sys_hosts(hosts_content.clone()).is_err() {
                 return Err(color_eyre::eyre::Error::msg("no permission"));
             }

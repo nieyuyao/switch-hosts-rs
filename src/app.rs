@@ -6,6 +6,7 @@ use crate::tip::Tip;
 use crate::hosts_title_input::TitleInput;
 use crate::util::Result;
 use crate::{observer::Subject};
+use crossterm::event::KeyEventKind;
 use crossterm::{
     event::{
         self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
@@ -184,7 +185,9 @@ impl App<'static> {
         if event::poll(Duration::from_millis(20))? {
             match event::read() {
                 Ok(Event::Key(event)) => {
-                    self.on_key_event(event)?;
+                    if event.kind == KeyEventKind::Press {
+                        self.on_key_event(event)?;
+                    }
                 }
                 Ok(Event::Mouse(e)) => {
                     if self.instant.elapsed().as_millis() < MOUSE_SCROLL_THROTTLE_INTERVAL {
