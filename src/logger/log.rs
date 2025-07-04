@@ -17,7 +17,6 @@ const TRIGGER_FILE_SIZE: u64 = 200 * 1024;
 const LOG_FILE_COUNT: u32 = 10;
 
 pub fn init_logger() -> Result<()> {
-    let level = log::LevelFilter::Info;
     let trigger = SizeTrigger::new(TRIGGER_FILE_SIZE);
     let roller = if cfg!(target_os = "windows") {
         FixedWindowRoller::builder()
