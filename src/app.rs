@@ -9,10 +9,9 @@ use crate::{observer::Subject};
 use crossterm::event::KeyEventKind;
 use crossterm::{
     event::{
-        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
+        self, Event, KeyCode, KeyEvent, KeyModifiers,
         MouseEventKind,
     },
-    terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use log::error;
 use ratatui::{
@@ -22,7 +21,7 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 use std::time::{Duration, Instant};
-use std::{cell::RefCell, io, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 const MOUSE_SCROLL_THROTTLE_INTERVAL: u128 = 100;
 
@@ -102,11 +101,7 @@ impl App<'static> {
         }
     }
 
-    pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
-        terminal::enable_raw_mode();
-        let stdout = io::stdout();
-        let mut stdout = stdout.lock();
-        crossterm::execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         self.running = true;
         while self.running {
             if self.mode == Mode::Normal {
@@ -124,12 +119,6 @@ impl App<'static> {
             })?;
             self.handle_crossterm_events()?;
         }
-        terminal::disable_raw_mode();
-        crossterm::execute!(
-            terminal.backend_mut(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        )?;
         Ok(())
     }
 
