@@ -33,11 +33,11 @@ mod observer;
 
 mod logger;
 
-mod filter;
+mod search;
 
 mod state;
 
-mod filter_result;
+mod search_result;
 
 use app::App;
 

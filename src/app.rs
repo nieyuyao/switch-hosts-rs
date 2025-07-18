@@ -1,6 +1,6 @@
 use crate::editor::Editor;
-use crate::filter::Filter;
-use crate::filter_result::FilterResult;
+use crate::search::Search;
+use crate::search_result::SearchResult;
 use crate::hosts_title_input::TitleInput;
 use crate::list::HostsList;
 use crate::observer::Subject;
@@ -27,6 +27,7 @@ const POPUP_VISIBLE_INTERVAL: u128 = 600;
 
 #[derive(Debug, Default, PartialEq)]
 enum Mode {
+    Loading,
     #[default]
     Normal,
     EditingTitle,
@@ -35,21 +36,21 @@ enum Mode {
     Filter,
 }
 
-pub struct App<'a> {
+pub struct App {
     running: bool,
     hosts_list: HostsList,
-    editor: Rc<RefCell<Editor<'a>>>,
-    tip: Tip<'a>,
+    editor: Rc<RefCell<Editor<'static>>>,
+    tip: Tip<'static>,
     mode: Mode,
-    hosts_title_input: TitleInput<'a>,
+    hosts_title_input: TitleInput<'static>,
     hosts_hosts_title_input: bool,
     show_password_input: bool,
-    password_input: PasswordInput<'a>,
+    password_input: PasswordInput<'static>,
     instant: Instant,
     popup_instant: Instant,
     cached_password: Option<String>,
-    filter: Filter,
-    filter_result: FilterResult,
+    search: Search,
+    search_result: SearchResult,
     popup: Popup,
     show_popup: bool,
     popup_text: String,
@@ -70,7 +71,7 @@ fn popup_area(area: Rect, length: u16) -> Rect {
     area
 }
 
-impl App<'static> {
+impl App {
     pub fn new() -> Self {
         let mut hosts_list = HostsList::new();
         let editor = Rc::new(RefCell::new(Editor::new()));
@@ -81,25 +82,26 @@ impl App<'static> {
         hosts_list_subject.borrow_mut().register(editor.clone());
         hosts_list.inject_subject(hosts_list_subject.clone());
         hosts_list.init();
+        let app_state = State::default();
         App {
             running: false,
             hosts_list,
             editor,
             tip,
-            filter: Filter::new(),
-            filter_result: FilterResult::new(),
+            search: Search::new(),
+            search_result: SearchResult::new(),
             mode: Mode::Normal,
             hosts_title_input,
             hosts_hosts_title_input: false,
             show_password_input: false,
-            password_input:  PasswordInput::new(),
+            password_input: PasswordInput::new(),
             instant: Instant::now(),
             popup_instant: Instant::now(),
             cached_password: None,
             popup,
             show_popup: false,
             popup_text: String::from(""),
-            state: State::default(),
+            state: app_state,
         }
     }
 
@@ -141,7 +143,7 @@ impl App<'static> {
         self.hosts_list.draw(left, buf);
         self.editor.borrow_mut().draw(right, buf);
         self.tip.draw(tip_area, buf);
-        self.filter.draw(filter_area, buf);
+        self.search_result.draw(filter_area, buf);
         if self.hosts_hosts_title_input {
             self.draw_title_input(frame_area, frame);
         }
@@ -362,8 +364,8 @@ impl App<'static> {
                 return Ok(());
             }
             Mode::Filter => {
-                self.filter.handle_event(event);
-                self.state.filter_input = self.filter.get_text();
+                self.search.handle_event(event);
+                self.state.filter_input = self.search.get_text();
                 return Ok(());
             }
             _ => {

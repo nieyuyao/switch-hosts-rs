@@ -5,13 +5,13 @@ use crate::single_line_textarea::{
     create_new_single_line_textarea, SingleLineTextarea, SinglelineTextareaType,
 };
 
-pub struct Filter {
+pub struct Search {
     filter_area: SingleLineTextarea<'static>,
 }
 
-impl Filter {
+impl Search {
     pub fn new() -> Self {
-        Filter {
+        Search {
             filter_area: create_new_single_line_textarea(
                 "",
                 "Filter",
