@@ -1,18 +1,16 @@
 use crate::editor::Editor;
+use crate::filter::Filter;
+use crate::filter_result::FilterResult;
+use crate::hosts_title_input::TitleInput;
 use crate::list::HostsList;
+use crate::observer::Subject;
 use crate::password_input::PasswordInput;
 use crate::popup::Popup;
+use crate::state::State;
 use crate::tip::Tip;
-use crate::hosts_title_input::TitleInput;
 use crate::util::Result;
-use crate::{observer::Subject};
 use crossterm::event::KeyEventKind;
-use crossterm::{
-    event::{
-        self, Event, KeyCode, KeyEvent, KeyModifiers,
-        MouseEventKind,
-    },
-};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
 use log::error;
 use ratatui::{
     layout::{Constraint, Flex, Layout},
@@ -34,6 +32,7 @@ enum Mode {
     EditingTitle,
     EditingHosts,
     InputPassword,
+    Filter,
 }
 
 pub struct App<'a> {
@@ -49,9 +48,12 @@ pub struct App<'a> {
     instant: Instant,
     popup_instant: Instant,
     cached_password: Option<String>,
+    filter: Filter,
+    filter_result: FilterResult,
     popup: Popup,
     show_popup: bool,
-    popup_text: String
+    popup_text: String,
+    state: State,
 }
 
 fn title_input_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
@@ -61,14 +63,12 @@ fn title_input_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
     area
 }
 
-
 fn popup_area(area: Rect, length: u16) -> Rect {
     let vertical = Layout::vertical([Constraint::Length(3)]).flex(Flex::Center);
     let horizontal = Layout::horizontal([Constraint::Length(length)]).flex(Flex::Center);
     let [area] = horizontal.areas(vertical.areas::<1>(area)[0]);
     area
 }
-
 
 impl App<'static> {
     pub fn new() -> Self {
@@ -81,23 +81,25 @@ impl App<'static> {
         hosts_list_subject.borrow_mut().register(editor.clone());
         hosts_list.inject_subject(hosts_list_subject.clone());
         hosts_list.init();
-        let password_input = PasswordInput::new();
         App {
             running: false,
             hosts_list,
             editor,
             tip,
+            filter: Filter::new(),
+            filter_result: FilterResult::new(),
             mode: Mode::Normal,
             hosts_title_input,
             hosts_hosts_title_input: false,
             show_password_input: false,
-            password_input,
+            password_input:  PasswordInput::new(),
             instant: Instant::now(),
             popup_instant: Instant::now(),
             cached_password: None,
             popup,
             show_popup: false,
             popup_text: String::from(""),
+            state: State::default(),
         }
     }
 
@@ -111,7 +113,8 @@ impl App<'static> {
             } else if self.mode == Mode::EditingHosts {
                 self.tip.show_line(2);
             }
-            if self.show_popup && self.popup_instant.elapsed().as_millis() > POPUP_VISIBLE_INTERVAL {
+            if self.show_popup && self.popup_instant.elapsed().as_millis() > POPUP_VISIBLE_INTERVAL
+            {
                 self.show_popup = false
             }
             terminal.draw(|frame| {
@@ -125,8 +128,12 @@ impl App<'static> {
     fn draw(&mut self, frame: &mut Frame) {
         let frame_area = frame.area();
         let buf = frame.buffer_mut();
-        let [main_area, tip_area] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(frame_area);
+        let [filter_area, main_area, tip_area] = Layout::vertical([
+            Constraint::Length(3),
+            Constraint::Fill(1),
+            Constraint::Length(1),
+        ])
+        .areas(frame_area);
         let [left, right] =
             Layout::horizontal(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
                 .flex(Flex::Start)
@@ -134,6 +141,7 @@ impl App<'static> {
         self.hosts_list.draw(left, buf);
         self.editor.borrow_mut().draw(right, buf);
         self.tip.draw(tip_area, buf);
+        self.filter.draw(filter_area, buf);
         if self.hosts_hosts_title_input {
             self.draw_title_input(frame_area, frame);
         }
@@ -161,10 +169,9 @@ impl App<'static> {
         self.password_input.draw(area, buf);
     }
 
-
     fn draw_popup(&mut self, frame_area: Rect, frame: &mut Frame) {
         let buf = frame.buffer_mut();
-        let area = popup_area(frame_area,self.popup_text.len() as u16 + 4);
+        let area = popup_area(frame_area, self.popup_text.len() as u16 + 4);
         frame.render_widget(Clear, area);
         let buf = frame.buffer_mut();
         self.popup.draw(self.popup_text.clone(), area, buf);
@@ -230,7 +237,6 @@ impl App<'static> {
 
     fn handle_event(&mut self, event: KeyEvent) -> Result<()> {
         match (event.modifiers, event.code) {
-            (KeyModifiers::CONTROL, KeyCode::Char('c') | KeyCode::Char('C')) => self.quit(),
             (KeyModifiers::SHIFT, KeyCode::Char('n') | KeyCode::Char('N')) => {
                 if self.mode == Mode::Normal {
                     self.hosts_hosts_title_input = true;
@@ -243,11 +249,11 @@ impl App<'static> {
             (KeyModifiers::SHIFT, KeyCode::Char('t') | KeyCode::Char('T')) => {
                 self.hosts_list.move_to_top();
             }
-            (KeyModifiers::SHIFT, KeyCode::Char('b') | KeyCode::Char('B'))  => {
-                 self.hosts_list.move_to_bottom();
+            (KeyModifiers::SHIFT, KeyCode::Char('b') | KeyCode::Char('B')) => {
+                self.hosts_list.move_to_bottom();
             }
             (KeyModifiers::SHIFT, KeyCode::Up) => {
-               self.hosts_list.move_to_previous();
+                self.hosts_list.move_to_previous();
             }
             (KeyModifiers::SHIFT, KeyCode::Down) => {
                 self.hosts_list.move_to_next();
@@ -256,12 +262,16 @@ impl App<'static> {
                 if self.mode == Mode::Normal {
                     let selected = self.hosts_list.get_selected_item().unwrap();
                     if selected.id() != "system" {
-                        self.hosts_title_input.set_text(selected.title().clone(), false);
+                        self.hosts_title_input
+                            .set_text(selected.title().clone(), false);
                         self.hosts_hosts_title_input = true;
                         self.mode = Mode::EditingTitle;
                     }
-                 
                 }
+            }
+            (_, KeyCode::Char('f') | KeyCode::Char('F')) => {
+                self.mode = Mode::Filter;
+                self.state.is_filter = true;
             }
             (_, KeyCode::Up) => {
                 self.hosts_list.toggle_previous();
@@ -275,7 +285,7 @@ impl App<'static> {
                     .toggle_on_off(self.cached_password.clone(), false);
                 self.update_show_password_input(res);
             }
-            (_, KeyCode::Tab) => {
+            (_, KeyCode::Right) => {
                 if let Some(id) = self.hosts_list.get_selected_id() {
                     self.mode = Mode::EditingHosts;
                     self.editor.borrow_mut().set_id(id.to_owned());
@@ -288,9 +298,15 @@ impl App<'static> {
     }
 
     fn on_key_event(&mut self, event: KeyEvent) -> Result<()> {
-        if self.mode == Mode::EditingTitle {
-            self.hosts_title_input.handle_event(event, |res| {
-                match res {
+        if event.modifiers == KeyModifiers::CONTROL
+            && (event.code == KeyCode::Char('c') || event.code == KeyCode::Char('C'))
+        {
+            self.quit();
+            return Ok(());
+        }
+        match self.mode {
+            Mode::EditingTitle => {
+                self.hosts_title_input.handle_event(event, |res| match res {
                     (true, None, _) => {
                         self.mode = Mode::Normal;
                         self.hosts_hosts_title_input = false;
@@ -305,46 +321,55 @@ impl App<'static> {
                         }
                     }
                     _ => {}
-                }
-            });
-            return Ok(());
-        } else if self.mode == Mode::EditingHosts {
-            let res = self.editor.borrow_mut().handle_event(event);
-
-            match res {
-                None => {
-                    return Ok(());
-                }
-                Some(quit) => {
-                    let mut old_mode = Mode::EditingHosts;
-                    if quit {
-                        self.mode = Mode::Normal;
-                        old_mode = Mode::Normal;
+                });
+                return Ok(());
+            }
+            Mode::EditingHosts => {
+                let res = self.editor.borrow_mut().handle_event(event);
+                match res {
+                    Some(quit) => {
+                        let mut old_mode = Mode::EditingHosts;
+                        if quit {
+                            self.mode = Mode::Normal;
+                            old_mode = Mode::Normal;
+                        }
+                        let toggled_res = self
+                            .hosts_list
+                            .toggle_on_off(self.cached_password.clone(), true);
+                        self.update_show_password_input(toggled_res);
+                        self.mode = old_mode;
+                        return Ok(());
                     }
-                    let toggled_res = self
-                        .hosts_list
-                        .toggle_on_off(self.cached_password.clone(), true);
-                    self.update_show_password_input(toggled_res);
-                    self.mode = old_mode;
-                }
-            };
-        } else if self.mode == Mode::InputPassword {
-            let res = self.password_input.handle_event(event);
-            match res {
-                (true, None) => {
-                    self.mode = Mode::Normal;
-                    self.show_password_input = false;
-                }
-                (true, password) => {
-                    self.cached_password = password.clone();
-                    let res = self.hosts_list.toggle_on_off(password, false);
-                    self.update_show_password_input(res);
-                }
-                _ => {}
-            };
-            return Ok(());
+                    _ => {
+                        return Ok(());
+                    }
+                };
+            }
+            Mode::InputPassword => {
+                let res = self.password_input.handle_event(event);
+                match res {
+                    (true, None) => {
+                        self.mode = Mode::Normal;
+                        self.show_password_input = false;
+                    }
+                    (true, password) => {
+                        self.cached_password = password.clone();
+                        let res = self.hosts_list.toggle_on_off(password, false);
+                        self.update_show_password_input(res);
+                    }
+                    _ => {}
+                };
+                return Ok(());
+            }
+            Mode::Filter => {
+                self.filter.handle_event(event);
+                self.state.filter_input = self.filter.get_text();
+                return Ok(());
+            }
+            _ => {
+                return self.handle_event(event);
+            }
         }
-        return self.handle_event(event);
     }
 
     fn quit(&mut self) {

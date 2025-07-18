@@ -315,4 +315,7 @@ impl HostsList {
                 .notify(self.selected.clone().unwrap_or("".to_owned()).as_str());
         }
     }
+
+    pub fn filter(&mut self, filter_input: String) {
+    }
 }

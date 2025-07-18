@@ -4,38 +4,42 @@
 
 use std::{io, panic};
 
-pub use app::App;
-use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
-    terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
-};
+use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::DefaultTerminal;
 
-pub mod app;
+mod app;
 
-pub mod list;
+mod list;
 
-pub mod editor;
+mod editor;
 
-pub mod hosts;
+mod hosts;
 
-pub mod data;
+mod data;
 
-pub mod tip;
+mod tip;
 
-pub mod hosts_title_input;
+mod hosts_title_input;
 
-pub mod popup;
+mod popup;
 
-pub mod util;
+mod util;
 
-pub mod password_input;
+mod password_input;
 
-pub mod single_line_textarea;
+mod single_line_textarea;
 
-pub mod observer;
+mod observer;
 
-pub mod logger;
+mod logger;
+
+mod filter;
+
+mod state;
+
+mod filter_result;
+
+use app::App;
 
 fn init_hooks() -> color_eyre::Result<()> {
     let original_hook = panic::take_hook();
@@ -48,7 +52,7 @@ fn init_hooks() -> color_eyre::Result<()> {
 
 fn init_terminal() -> color_eyre::Result<DefaultTerminal> {
     let mut stdout = io::stdout();
-    crossterm::execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    crossterm::execute!(stdout, EnterAlternateScreen)?;
     terminal::enable_raw_mode();
     let terminal = ratatui::init();
     Ok(terminal)
@@ -56,7 +60,7 @@ fn init_terminal() -> color_eyre::Result<DefaultTerminal> {
 
 fn restore_terminal() -> color_eyre::Result<()> {
     let mut stdout = io::stdout();
-    crossterm::execute!(stdout, LeaveAlternateScreen, DisableMouseCapture)?;
+    crossterm::execute!(stdout, LeaveAlternateScreen)?;
     terminal::disable_raw_mode();
     Ok(())
 }
