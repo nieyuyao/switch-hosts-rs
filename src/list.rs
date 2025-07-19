@@ -262,25 +262,6 @@ impl HostsList {
         self.sync_config();
     }
 
-    pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
-        let block = Block::new();
-        block.render(area, buf);
-        let block = Block::bordered()
-            .style(Style::new().white().on_black().bold())
-            .title("Hosts List");
-        let items: Vec<ListItem> = self
-            .item_list
-            .iter()
-            .map(|hosts_item| ListItem::from(hosts_item))
-            .collect();
-        let list = List::new(items).block(block).highlight_symbol("👉");
-        self.state.select(find_selected_index(
-            &self.item_list,
-            &self.selected.clone().unwrap_or("".to_owned()),
-        ));
-        StatefulWidget::render(list, area, buf, &mut self.state);
-    }
-
     pub fn generate_hosts_content(&self, toggled_id: &String, toggled: bool) -> Result<String> {
         let enabled = self
             .item_list
@@ -314,5 +295,28 @@ impl HostsList {
             s.borrow()
                 .notify(self.selected.clone().unwrap_or("".to_owned()).as_str());
         }
+    }
+
+    pub fn get_all_hosts_item_list(&self) -> &Vec<ConfigItem> {
+        &self.item_list
+    }
+
+    pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
+        let block = Block::new();
+        block.render(area, buf);
+        let block = Block::bordered()
+            .style(Style::new().white().on_black().bold())
+            .title("Hosts List");
+        let items: Vec<ListItem> = self
+            .item_list
+            .iter()
+            .map(|hosts_item| ListItem::from(hosts_item))
+            .collect();
+        let list = List::new(items).block(block).highlight_symbol("👉");
+        self.state.select(find_selected_index(
+            &self.item_list,
+            &self.selected.clone().unwrap_or("".to_owned()),
+        ));
+        StatefulWidget::render(list, area, buf, &mut self.state);
     }
 }

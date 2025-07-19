@@ -92,3 +92,10 @@ pub fn create_new_single_line_textarea<'a>(
         r#type,
     )
 }
+
+pub fn create_new_single_line_textarea2 (
+    place_holder: impl Into<String>,
+) {
+    let b = place_holder.into();
+   
+}
