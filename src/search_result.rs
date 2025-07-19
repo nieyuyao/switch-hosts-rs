@@ -1,6 +1,5 @@
 use crate::data::{read_item_data, ConfigItem};
 use crossterm::event::{KeyCode, KeyEvent};
-use log::debug;
 
 use ratatui::{
     buffer::Buffer,
@@ -13,6 +12,7 @@ use ratatui::{
 pub struct SearchResult {
     list: Vec<FilterResult>,
     selected_index: usize,
+    viewport_start: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +51,7 @@ impl SearchResult {
         SearchResult {
             list: vec![],
             selected_index: 0,
+            viewport_start: 0,
         }
     }
 
@@ -73,12 +74,12 @@ impl SearchResult {
 
     pub fn update(&mut self, all_hosts_item_list: &Vec<ConfigItem>, filter_input: String) {
         let mut list: Vec<FilterResult> = vec![];
+        let mut index: usize = 0;
         for item in all_hosts_item_list {
             let id = item.id();
             if id == "system" {
                 continue;
             }
-            let mut index: usize = 0;
             if let Ok(content) = read_item_data(id) {
                 let searched = search_hosts(&filter_input, content);
                 let mut filter_results = searched
@@ -97,16 +98,24 @@ impl SearchResult {
                 list.append(&mut filter_results);
             }
         }
-        debug!("{:#?}", &list);
         self.list = list;
-        self.selected_index = 0
+        self.selected_index = 0;
+        self.viewport_start = 0;
     }
 
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
+        let visible_rows = area.height.saturating_sub(1) as usize;
+        if self.selected_index > self.viewport_start + visible_rows - 1 {
+            self.viewport_start += 1;
+        } else if self.selected_index < self.viewport_start {
+            self.viewport_start = self.selected_index;
+        }
         let rows = self
             .list
             .iter()
             .enumerate()
+            .skip(self.viewport_start)
+            .take(visible_rows as usize)
             .map(|(i, fr)| {
                 let index = fr.row_content.find(fr.filter_input.as_str()).unwrap();
                 let front = &fr.row_content[..index];
@@ -123,6 +132,7 @@ impl SearchResult {
                     Style::default()
                 };
                 Row::new(vec![
+                    Cell::from(fr.index.to_string()),
                     Cell::from(matched),
                     Cell::from(fr.title.as_str()),
                     Cell::from(fr.row.to_string()),
@@ -133,6 +143,7 @@ impl SearchResult {
         let table = Table::new(
             rows.clone(),
             [
+                Constraint::Length(10),
                 Constraint::Fill(1),
                 Constraint::Length(20),
                 Constraint::Length(10),
@@ -165,5 +176,16 @@ mod tests {
                 SearchDetail(2, "127.0.0.1 dev.cn".to_string())
             ]
         );
+    }
+
+    #[test]
+    pub fn test_take() {
+        let a = vec![2, 3, 4, 5];
+
+        let b = a.iter().enumerate().skip(2).take(2).map(|(index, num)| {
+            return index
+        }).collect::<Vec<_>>();
+
+        println!("{:#?}", b);
     }
 }
