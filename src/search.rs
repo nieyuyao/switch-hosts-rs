@@ -28,8 +28,12 @@ impl Search {
         self.filter_area.get_text()
     }
 
+    pub fn clear(&mut self) {
+        self.filter_area =
+            create_new_single_line_textarea("", "Filter", SinglelineTextareaType::Text)
+    }
+
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
         self.filter_area.draw(area, buf);
     }
-
 }

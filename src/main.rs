@@ -35,8 +35,6 @@ mod logger;
 
 mod search;
 
-mod state;
-
 mod search_result;
 
 use app::App;

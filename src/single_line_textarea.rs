@@ -93,8 +93,6 @@ pub fn create_new_single_line_textarea<'a>(
     )
 }
 
-
-
 pub fn create_new_single_line_textarea2 (
     place_holder: impl Into<String>,
 ) {

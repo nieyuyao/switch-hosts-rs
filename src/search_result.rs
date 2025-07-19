@@ -1,4 +1,7 @@
-use crate::{data::read_item_data, state::State};
+use crate::data::{read_item_data, ConfigItem};
+use crossterm::event::{KeyCode, KeyEvent};
+use log::debug;
+
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Rect},
@@ -12,7 +15,9 @@ pub struct SearchResult {
     selected_index: usize,
 }
 
+#[derive(Debug, Clone)]
 pub struct FilterResult {
+    index: usize,
     row_content: String,
     filter_input: String,
     title: String,
@@ -49,24 +54,50 @@ impl SearchResult {
         }
     }
 
-    pub fn update(&mut self, state: &State) {
-        let State { filter_input, .. } = state;
+    pub fn handle_event(&mut self, event: KeyEvent) {
+        match event.code {
+            KeyCode::Up => {
+                if self.selected_index > 0 {
+                    self.selected_index -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if self.selected_index < self.list.len() - 1 {
+                    self.selected_index += 1;
+                }
+            }
+            KeyCode::Right => {}
+            _ => {}
+        }
+    }
+
+    pub fn update(&mut self, all_hosts_item_list: &Vec<ConfigItem>, filter_input: String) {
         let mut list: Vec<FilterResult> = vec![];
-        for item in &state.all_hosts_item_list {
-            if let Ok(content) = read_item_data(item.id()) {
-                let searched = search_hosts(filter_input, content);
+        for item in all_hosts_item_list {
+            let id = item.id();
+            if id == "system" {
+                continue;
+            }
+            let mut index: usize = 0;
+            if let Ok(content) = read_item_data(id) {
+                let searched = search_hosts(&filter_input, content);
                 let mut filter_results = searched
                     .iter()
-                    .map(|r| FilterResult {
-                        row: r.0 + 1,
-                        row_content: r.1.clone(),
-                        title: item.title().clone(),
-                        filter_input: state.filter_input.clone(),
+                    .map(|r| {
+                        index += 1;
+                        FilterResult {
+                            index,
+                            row: r.0 + 1,
+                            row_content: r.1.clone(),
+                            title: item.title().clone(),
+                            filter_input: filter_input.clone(),
+                        }
                     })
                     .collect::<Vec<FilterResult>>();
                 list.append(&mut filter_results);
             }
         }
+        debug!("{:#?}", &list);
         self.list = list;
         self.selected_index = 0
     }
@@ -87,29 +118,28 @@ impl SearchResult {
                     Span::from(behind),
                 ]);
                 let row_style = if self.selected_index == i {
-                    Style::default().fg(Color::Gray)
+                    Style::default().bg(Color::DarkGray)
                 } else {
                     Style::default()
                 };
-                let span = Span::from("123").style(Style::default().fg(Color::Green));
-                let l = Line::from(vec![span]);
-                let c = Cell::from(l);
                 Row::new(vec![
-                    Cell::from(matched).style(row_style),
-                    Cell::from(fr.title.as_str()).style(row_style),
-                    Cell::from(fr.row.to_string()).style(row_style),
+                    Cell::from(matched),
+                    Cell::from(fr.title.as_str()),
+                    Cell::from(fr.row.to_string()),
                 ])
+                .style(row_style)
             })
             .collect::<Vec<_>>();
         let table = Table::new(
-            rows,
+            rows.clone(),
             [
                 Constraint::Fill(1),
+                Constraint::Length(20),
                 Constraint::Length(10),
-                Constraint::Length(3),
             ],
         )
-        .header(Row::new(vec!["匹配", "标题", "行号"]).height(1));
+        .header(Row::new(vec!["Index", "匹配", "标题", "行号"]).height(1));
+
         Widget::render(table, area, buf);
     }
 }
@@ -128,9 +158,12 @@ mod tests {
             192.167.0.1 dev2.cn
         "#;
         let result = search_hosts("127.0.0.1", hosts_content);
-        assert_eq!(result, vec![
-            SearchDetail(1, "127.0.0.1 localhost".to_string()),
-            SearchDetail(2, "127.0.0.1 dev.cn".to_string())
-        ]);
+        assert_eq!(
+            result,
+            vec![
+                SearchDetail(1, "127.0.0.1 localhost".to_string()),
+                SearchDetail(2, "127.0.0.1 dev.cn".to_string())
+            ]
+        );
     }
 }

@@ -1,17 +1,16 @@
 use crate::editor::Editor;
-use crate::search::Search;
-use crate::search_result::SearchResult;
 use crate::hosts_title_input::TitleInput;
 use crate::list::HostsList;
 use crate::observer::Subject;
 use crate::password_input::PasswordInput;
 use crate::popup::Popup;
-use crate::state::State;
+use crate::search::Search;
+use crate::search_result::SearchResult;
 use crate::tip::Tip;
 use crate::util::Result;
 use crossterm::event::KeyEventKind;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
-use log::error;
+use log::{debug, error};
 use ratatui::{
     layout::{Constraint, Flex, Layout},
     prelude::Rect,
@@ -54,7 +53,6 @@ pub struct App {
     popup: Popup,
     show_popup: bool,
     popup_text: String,
-    state: State,
 }
 
 fn title_input_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
@@ -79,10 +77,9 @@ impl App {
         let popup = Popup();
         let hosts_title_input = TitleInput::new();
         let hosts_list_subject = Rc::new(RefCell::new(Subject::new()));
+        hosts_list.init();
         hosts_list_subject.borrow_mut().register(editor.clone());
         hosts_list.inject_subject(hosts_list_subject.clone());
-        hosts_list.init();
-        let app_state = State::default();
         App {
             running: false,
             hosts_list,
@@ -101,7 +98,6 @@ impl App {
             popup,
             show_popup: false,
             popup_text: String::from(""),
-            state: app_state,
         }
     }
 
@@ -140,10 +136,14 @@ impl App {
             Layout::horizontal(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
                 .flex(Flex::Start)
                 .areas(main_area);
-        self.hosts_list.draw(left, buf);
-        self.editor.borrow_mut().draw(right, buf);
+        self.search.draw(filter_area, buf);
+        if self.mode == Mode::Filter {
+            self.search_result.draw(main_area, buf);
+        } else {
+            self.hosts_list.draw(left, buf);
+            self.editor.borrow_mut().draw(right, buf);
+        }
         self.tip.draw(tip_area, buf);
-        self.search_result.draw(filter_area, buf);
         if self.hosts_hosts_title_input {
             self.draw_title_input(frame_area, frame);
         }
@@ -273,7 +273,6 @@ impl App {
             }
             (_, KeyCode::Char('f') | KeyCode::Char('F')) => {
                 self.mode = Mode::Filter;
-                self.state.is_filter = true;
             }
             (_, KeyCode::Up) => {
                 self.hosts_list.toggle_previous();
@@ -364,8 +363,20 @@ impl App {
                 return Ok(());
             }
             Mode::Filter => {
-                self.search.handle_event(event);
-                self.state.filter_input = self.search.get_text();
+                if event.code == KeyCode::Esc {
+                    self.mode = Mode::Normal;
+                    self.search.clear();
+                } else if event.code == KeyCode::Enter {
+                    debug!("Press Enter");
+                    self.search_result.update(
+                        self.hosts_list.get_all_hosts_item_list(),
+                        self.search.get_text(),
+                    );
+                    debug!("Search text is {:#?}", self.search.get_text());
+                } else {
+                    self.search.handle_event(event);
+                    self.search_result.handle_event(event);
+                }
                 return Ok(());
             }
             _ => {
