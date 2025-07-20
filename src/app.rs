@@ -375,7 +375,14 @@ impl App {
                     debug!("Search text is {:#?}", self.search.get_text());
                 } else {
                     self.search.handle_event(event);
-                    self.search_result.handle_event(event);
+                    self.search_result.handle_event(event, |item_id, row| {
+                        self.mode = Mode::EditingHosts;
+                        self.search.clear();
+                        self.hosts_list.set_selected_item(item_id.to_owned());
+                        self.editor.borrow_mut().set_id(item_id.to_owned());
+                        self.editor.borrow_mut().activate();
+                        self.editor.borrow_mut().jump_curosr(row.to_owned().saturating_sub(1));
+                    });
                 }
                 return Ok(());
             }

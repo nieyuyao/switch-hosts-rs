@@ -75,6 +75,10 @@ impl Editor<'_> {
         self.textarea.move_cursor(CursorMove::Up);
     }
 
+    pub fn jump_curosr(&mut self, row: usize) {
+        self.textarea.move_cursor(CursorMove::Jump(row as u16, 0));
+    }
+
     pub fn handle_event(
         &mut self,
         event: KeyEvent,

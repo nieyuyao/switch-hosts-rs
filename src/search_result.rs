@@ -19,6 +19,7 @@ pub struct SearchResult {
 pub struct FilterResult {
     index: usize,
     row_content: String,
+    item_id: String,
     filter_input: String,
     title: String,
     row: usize,
@@ -55,7 +56,7 @@ impl SearchResult {
         }
     }
 
-    pub fn handle_event(&mut self, event: KeyEvent) {
+    pub fn handle_event<F: FnMut(&String, &usize)>(&mut self, event: KeyEvent, mut callback: F) {
         match event.code {
             KeyCode::Up => {
                 if self.selected_index > 0 {
@@ -67,9 +68,18 @@ impl SearchResult {
                     self.selected_index += 1;
                 }
             }
-            KeyCode::Right => {}
+            KeyCode::Right => {
+                let FilterResult { item_id, row,.. } = &self.list[self.selected_index];
+                callback(item_id, row);
+            }
             _ => {}
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.selected_index = 0;
+        self.viewport_start = 0;
+        self.list.clear();
     }
 
     pub fn update(&mut self, all_hosts_item_list: &Vec<ConfigItem>, filter_input: String) {
@@ -89,6 +99,7 @@ impl SearchResult {
                         FilterResult {
                             index,
                             row: r.0 + 1,
+                            item_id: id.clone(),
                             row_content: r.1.clone(),
                             title: item.title().clone(),
                             filter_input: filter_input.clone(),

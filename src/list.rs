@@ -301,6 +301,11 @@ impl HostsList {
         &self.item_list
     }
 
+    pub fn set_selected_item(&mut self, id: String) {
+        self.selected = Some(id);
+        self.dispatch_subject();
+    }
+
     pub fn draw(&mut self, area: Rect, buf: &mut Buffer) {
         let block = Block::new();
         block.render(area, buf);
