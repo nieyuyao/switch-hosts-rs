@@ -14,20 +14,20 @@ pub struct Tip<'a> {
 impl<'a> Tip<'a> {
     pub fn new() -> Self {
         let edit_list_message_line = Line::from(vec![
-            Span::styled("Ctrl+N", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled("Shift+N", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" 添加hosts "),
-            Span::styled("Ctrl+D", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled("Shift+D", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" 删除hosts "),
             Span::styled("Ctrl+C", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" 退出 "),
+             Span::styled("→", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("进入编辑"),
         ]);
         let edit_hosts_message_line = Line::from(vec![
             Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" 退出编辑模式 "),
         ]);
-        let edit_title_message_line = Line::from(vec![
-            Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 确定添加 "),
+        let edit_title_message_line: Line<'_> = Line::from(vec![
             Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(" 退出 "),
         ]);
