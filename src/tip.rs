@@ -1,7 +1,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::WidgetRef,
 };
@@ -13,24 +13,27 @@ pub struct Tip<'a> {
 }
 impl<'a> Tip<'a> {
     pub fn new() -> Self {
+        let strong_style = Style::default()
+            .add_modifier(Modifier::BOLD)
+            .fg(Color::LightGreen);
         let edit_list_message_line = Line::from(vec![
-            Span::styled("Shift+N", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled("Shift+N", strong_style),
             Span::raw(" 添加hosts "),
-            Span::styled("Shift+D", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled("Shift+D", strong_style),
             Span::raw(" 删除hosts "),
-            Span::styled("Ctrl+C", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 退出 "),
-             Span::styled("→", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled("Shift+M", strong_style),
+            Span::raw(" 修改标题 "),
+            Span::styled("→", strong_style),
             Span::raw("进入编辑"),
+            Span::styled("Ctrl+C", strong_style),
+            Span::raw(" 退出 "),
         ]);
         let edit_hosts_message_line = Line::from(vec![
-            Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled("Esc", strong_style),
             Span::raw(" 退出编辑模式 "),
         ]);
-        let edit_title_message_line: Line<'_> = Line::from(vec![
-            Span::styled("Esc", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(" 退出 "),
-        ]);
+        let edit_title_message_line: Line<'_> =
+            Line::from(vec![Span::styled("Esc", strong_style), Span::raw(" 退出 ")]);
         return Tip {
             which: 0,
             lines: [
