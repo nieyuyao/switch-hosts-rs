@@ -5,6 +5,7 @@ use crate::{
     hosts::read_sys_hosts,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use log::debug;
 use ratatui::{
     prelude::{Buffer, Rect},
     style::{Modifier, Style, Stylize},
@@ -147,6 +148,7 @@ impl Editor<'_> {
 
 impl Observer for Editor<'_> {
     fn update(&mut self, current_id: &str) {
+        debug!("receive subject");
         let id = current_id.to_owned();
         let res: Result<String> = {
             if id == String::from("system") {

@@ -77,9 +77,9 @@ impl App {
         let popup = Popup();
         let hosts_title_input = TitleInput::new();
         let hosts_list_subject = Rc::new(RefCell::new(Subject::new()));
-        hosts_list.init();
         hosts_list_subject.borrow_mut().register(editor.clone());
         hosts_list.inject_subject(hosts_list_subject.clone());
+        hosts_list.init();
         App {
             running: false,
             hosts_list,

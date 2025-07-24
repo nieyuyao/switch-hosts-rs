@@ -6,6 +6,7 @@ use crate::hosts::{write_sys_hosts, write_sys_hosts_with_sudo};
 use crate::observer::Subject;
 use crate::util::Result;
 use crate::util::{find_config_by_id, find_mut_config_by_id, find_selected_index};
+use log::debug;
 use ratatui::{
     prelude::{Buffer, Rect},
     style::{Style, Stylize},
@@ -291,6 +292,7 @@ impl HostsList {
     }
 
     pub fn dispatch_subject(&self) {
+        debug!("notify subject");
         if let Some(s) = self.event_subject.clone() {
             s.borrow()
                 .notify(self.selected.clone().unwrap_or("".to_owned()).as_str());
